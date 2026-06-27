@@ -1,7 +1,7 @@
 # Pocket Mine
-https://github.com/user-attachments/assets/c7ccff39-1ba7-4148-9741-355a82c98bfe
-Pocket Mine is a professional airport AI demo that screens passenger power banks before boarding, flags lithium-ion fire risks, and turns collected batteries into traceable recyclable resources.
 
+Pocket Mine is a professional airport AI demo that screens passenger power banks before boarding, flags lithium-ion fire risks, and turns collected batteries into traceable recyclable resources.
+<img width="1376" height="768" alt="Image" src="https://github.com/user-attachments/assets/c7ccff39-1ba7-4148-9741-355a82c98bfe" />
 ## Demo concept
 
 The app simulates a security-lane workstation for mobile battery inspection:
