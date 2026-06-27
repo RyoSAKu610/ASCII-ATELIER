@@ -1,19 +1,39 @@
 # Pocket-mine
 Pocket Mine lets airports scan power banks with AI, detect fire-risk batteries before boarding, and turn collected batteries into traceable recyclable resources.
-## Pocket Mine — App Feature Description
+## Pocket Mine — Comical App Feature Description
 
-**Pocket Mine** is an AI battery intelligence system designed for airport safety.
+**Pocket Mine** is an AI safety app for airports that looks at your power bank and asks the question nobody wants to ask at 30,000 feet:
 
-The app allows airport staff to take a single photo of power banks or lithium-ion batteries. Using computer vision and OCR, Pocket Mine reads battery labels, estimates capacity, checks visible condition, and detects warning signs such as swelling, dents, burn marks, damaged casing, or unreadable safety information.
+**“Is this little rectangle about to become spicy?”**
 
-Based on the scan, the app gives a clear airport-ready decision:
+Millions of passengers carry power banks every day. Most are harmless. Some are old, swollen, damaged, mysterious, unlabeled, or suspiciously warm — basically tiny pocket goblins with lithium inside.
 
-**Safe to Fly** — the battery appears compliant and undamaged.
-**Needs Review** — the battery requires human inspection before boarding.
-**Isolate Now** — the battery may pose a fire risk and should not be allowed on board.
+That is where **Pocket Mine** comes in.
 
-Pocket Mine helps staff make faster, more consistent decisions before passengers enter the aircraft. Instead of relying only on human eyes, the system turns battery inspection into a simple AI-assisted workflow.
+Airport staff take one photo of a power bank or battery. Pocket Mine reads the label, checks the capacity, looks at the shape, and searches for visible danger signs like swelling, cracks, dents, burn marks, or missing safety information.
 
-Beyond safety, Pocket Mine also tracks collected batteries as valuable resources. Batteries removed from flights can be logged, categorized, and redirected toward recycling or material recovery, including lithium, copper, nickel, and cobalt.
+Then it gives a simple decision:
 
-Pocket Mine keeps dangerous batteries off aircraft and turns hidden risk into visible intelligence.
+**Safe to Fly**
+This battery looks normal. Let it board.
+
+**Needs Review**
+Something feels weird. A human should check it.
+
+**Isolate Now**
+This battery is giving “please do not put me on an airplane” energy.
+
+Pocket Mine helps airport teams spot risky batteries before the aircraft door closes. It turns battery inspection from “Hmm… looks okay?” into a clear AI-assisted safety workflow.
+
+But the story does not end with removing bad batteries.
+
+Collected batteries are not just trash. They are tiny treasure chests filled with lithium, copper, nickel, and cobalt — materials used in batteries, energy storage, and AI infrastructure.
+
+So Pocket Mine does two things at once:
+
+It keeps fire-risk batteries off planes.
+And it turns pocket-sized danger into trackable airport treasure.
+
+**Pocket Mine.**
+Let AI read the battery before the battery starts its villain arc.
+
