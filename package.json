@@ -1,17 +1,16 @@
 {
+  "name": "pocket-mine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Google-powered airport battery screening demo for the Pocket Mine hackathon pitch.",
   "scripts": {
-    "start": "vite --host 0.0.0.0 --port 4173",
-    "demo": "vite --host 0.0.0.0 --port 4173",
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "check": "npm run test && npm run build",
-    "test": "vitest run"
+    "dev": "node scripts/server.mjs",
+    "start": "node scripts/server.mjs",
+    "test": "node --test",
+    "check": "node --check src/app.js && node --check src/analyzer.js && node --check src/export.js && node --test"
   },
-  "dependencies": {
-    "vite": "latest",
-    "vitest": "latest",
-    "typescript": "latest"
-  },
-  "devDependencies": {}
+  "engines": {
+    "node": ">=20"
+  }
 }
