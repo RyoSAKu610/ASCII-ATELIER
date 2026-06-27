@@ -1,200 +1,200 @@
-import {
-  APPEARANCE_OPTIONS,
-  DEMO_BATTERIES,
-  buildGeminiPrompt,
-  classifyBattery,
-  createIncidentRecord,
-  evaluateFlightQuery,
-  makeUploadedBattery,
-} from './analyzer.js'
-import { downloadJson, downloadTextReport } from './export.js'
+import { MOTIF_LABELS, STYLES, defaultOptions, detectMotif, generateAscii, imageToAscii } from './generator.js'
+import { downloadPng, downloadSvg, downloadText } from './export.js'
 
-const STORAGE_KEY = 'pocket-mine-inspections-v2'
-const MASCOT_SRC = './src/assets/pocket-mine-mascot.png'
-const SCAN_STEPS = [
-  'Scanning shape...',
-  'Reading label...',
-  'Checking swelling...',
-  'Estimating Wh...',
-  'Looking for damage...',
+const STORAGE_KEY = 'ascii-atelier-shelf-v2'
+const SETTINGS_KEY = 'ascii-atelier-settings-v2'
+
+const examples = [
+  '雨の東京をネオン調で',
+  '月を見上げる黒猫',
+  '古い端末で眠るロボット',
+  '星の海を泳ぐドラゴン',
+  '花が咲く小さな山小屋',
+  'cyberpunk skyline at midnight',
 ]
-const FLOW_STEPS = ['Scan', 'Detect', 'Analyze', 'Result', 'Evidence']
+
+const palettes = [
+  { id: 'aurora', label: 'Aurora', bg: '#050712', ink: '#eaffff', accent: '#6cf6ff', glow: '#78ffbf' },
+  { id: 'amber', label: 'Amber CRT', bg: '#120d04', ink: '#fff1c2', accent: '#ffbe55', glow: '#ff7a3d' },
+  { id: 'sakura', label: 'Sakura', bg: '#130810', ink: '#ffeaf7', accent: '#ff8fcb', glow: '#b5a7ff' },
+  { id: 'paper', label: 'Paper', bg: '#f7f2e7', ink: '#211b16', accent: '#7f5cff', glow: '#14a87b' },
+  { id: 'matrix', label: 'Matrix', bg: '#020802', ink: '#dbffe4', accent: '#48ff74', glow: '#19d66b' },
+]
+
+const savedSettings = safeJson(localStorage.getItem(SETTINGS_KEY), {})
 
 const state = {
-  selectedId: 'pm-005',
-  uploaded: null,
-  result: null,
-  incident: null,
-  scanning: false,
-  scanStep: -1,
-  cameraStream: null,
-  flightQuery: {
-    wh: '99',
-    appearance: 'swollen',
-    isSpare: true,
-    bag: 'carry-on',
+  prompt: savedSettings.prompt || examples[0],
+  options: {
+    ...defaultOptions,
+    ...(savedSettings.options || {}),
   },
-  history: safeParse(STORAGE_KEY, []),
+  palette: savedSettings.palette || 'aurora',
+  zoom: savedSettings.zoom || 1,
+  result: null,
+  variants: [],
+  shelf: safeJson(localStorage.getItem(STORAGE_KEY), []),
+  editing: false,
+  undo: [],
+  redo: [],
+  status: 'Ready',
 }
 
 document.querySelector('#app').innerHTML = `
   <header class="topbar">
-    <a class="brand" href="#" aria-label="Pocket Mine">
-      <span class="brand-mark"><span></span></span>
-      <span><b>Pocket Mine</b><small>AI BATTERY RISK DETECTION</small></span>
+    <a class="brand" href="#" aria-label="ASCII ATELIER">
+      <span class="brand-mark">Aa</span>
+      <span><b>ASCII ATELIER</b><small>prompt to text-art studio</small></span>
     </a>
-    <nav class="top-actions" aria-label="Controls">
-      <button class="ghost-button" id="demoMoment"><span class="material-symbols-rounded">bolt</span><span>Demo Moment</span></button>
-      <button class="ghost-button" id="openCameraTop"><span class="material-symbols-rounded">photo_camera</span><span>Camera</span></button>
-      <button class="icon-button" id="resetDemo" title="Reset"><span class="material-symbols-rounded">restart_alt</span></button>
+    <nav class="top-actions" aria-label="Quick actions">
+      <button class="ghost-button" id="randomPrompt" type="button">Surprise</button>
+      <button class="ghost-button" id="openShelf" type="button">Shelf <span id="shelfCount">0</span></button>
+      <button class="icon-button" id="openHelp" type="button" title="Help">?</button>
     </nav>
   </header>
 
   <main>
-    <section class="mission-console" aria-labelledby="appTitle">
-      <div class="mission-head">
-        <div>
-          <p class="eyebrow"><span></span> AI Battery Risk Detection for Airports</p>
-          <h1 id="appTitle">Pocket Mine</h1>
-          <p class="mission-line">Scan the pocket. Find the mine. Save the flight.</p>
-        </div>
-        <div class="live-status">
-          <span class="pulse"></span>
-          <b>AI goggles online</b>
-          <small>One scan. One score. One safer flight.</small>
-        </div>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">text becomes atmosphere</p>
+        <h1>言葉から、飾れるASCIIアートを。</h1>
+        <p>お題を入れるだけで、モチーフ判定・スタイル調整・画像変換・保存・書き出しまでできる、小さな文字絵アトリエです。</p>
       </div>
-
-      <div class="flow-strip" id="flowStrip"></div>
-
-      <div class="app-grid">
-        <section class="camera-panel" aria-label="Camera scan">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-kicker">SCAN</p>
-              <h2>Point camera at a power bank</h2>
-            </div>
-            <span class="secure-chip"><span class="material-symbols-rounded">radar</span> AI VISION</span>
-          </div>
-
-          <div class="camera-view" id="cameraView"></div>
-
-          <div class="scan-console">
-            <div class="scan-steps" id="scanSteps"></div>
-            <label class="label-console" for="labelInput">
-              <span>OCR / Wh label</span>
-              <textarea id="labelInput" rows="3" spellcheck="false"></textarea>
-            </label>
-            <div class="control-row">
-              <label class="upload-button" for="photoInput">
-                <input id="photoInput" type="file" accept="image/png,image/jpeg,image/webp" />
-                <span class="material-symbols-rounded">add_a_photo</span>
-                <span>Photo</span>
-              </label>
-              <button class="ghost-button" id="openCamera"><span class="material-symbols-rounded">photo_camera</span><span>Camera</span></button>
-              <button class="primary-button" id="runScan"><span class="material-symbols-rounded">document_scanner</span><span>Start Scan</span></button>
-            </div>
-          </div>
-        </section>
-
-        <section class="analysis-panel" aria-label="Risk result">
-          <div class="mascot-panel" id="mascotPanel"></div>
-          <div class="result-hero" id="resultHero"></div>
-          <div class="factor-grid" id="factorGrid"></div>
-          <div class="evidence-panel" id="evidencePanel"></div>
-          <div class="result-actions">
-            <button class="secondary-button" id="copyReport"><span class="material-symbols-rounded">content_copy</span><span>Briefing</span></button>
-            <button class="secondary-button" id="exportJson"><span class="material-symbols-rounded">download</span><span>Evidence JSON</span></button>
-          </div>
-        </section>
-      </div>
-
-      <div class="intelligence-grid">
-        <section class="fly-panel" aria-labelledby="flyTitle">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-kicker">CAN IT FLY?</p>
-              <h2 id="flyTitle">Instant battery carry decision</h2>
-            </div>
-            <span class="secure-chip"><span class="material-symbols-rounded">travel</span> SEARCH</span>
-          </div>
-          <div class="fly-search">
-            <label>
-              <span>Wh</span>
-              <input id="flyWh" type="number" min="0" step="1" inputmode="decimal" />
-            </label>
-            <label>
-              <span>Appearance</span>
-              <select id="flyAppearance">
-                ${APPEARANCE_OPTIONS.map((option) => `<option value="${option.id}">${option.label}</option>`).join('')}
-              </select>
-            </label>
-            <label class="toggle-field">
-              <input id="flySpare" type="checkbox" />
-              <span>Spare battery</span>
-            </label>
-            <div class="bag-toggle" id="bagToggle" aria-label="Bag placement">
-              <button type="button" data-bag="carry-on"><span class="material-symbols-rounded">luggage</span>Carry-on</button>
-              <button type="button" data-bag="checked"><span class="material-symbols-rounded">business_center</span>Checked</button>
-            </div>
-          </div>
-          <div class="fly-result" id="flyResult"></div>
-        </section>
-
-        <section class="atlas-panel" aria-labelledby="atlasTitle">
-          <div class="section-title">
-            <p class="eyebrow"><span></span> Field learning loop</p>
-            <h2 id="atlasTitle">Danger Battery Atlas</h2>
-          </div>
-          <div class="atlas-stats" id="atlasStats"></div>
-          <div class="atlas-grid" id="atlasGrid"></div>
-        </section>
+      <div class="hero-card" aria-label="Studio signal">
+        <span class="live-dot"></span>
+        <b id="motifBadge">motif: --</b>
+        <small>deterministic / local / exportable</small>
       </div>
     </section>
 
-    <section class="sample-strip" aria-labelledby="sampleTitle">
-      <div class="section-title">
-        <p class="eyebrow"><span></span> Demo pockets</p>
-        <h2 id="sampleTitle">Power bank samples</h2>
-      </div>
-      <div class="sample-grid" id="sampleGrid"></div>
+    <section class="studio-grid">
+      <aside class="control-panel" aria-label="Generation controls">
+        <form id="promptForm" class="prompt-box">
+          <label for="promptInput">お題 / Prompt</label>
+          <textarea id="promptInput" rows="5" spellcheck="false" placeholder="例: 雨の東京をネオン調で"></textarea>
+          <div class="prompt-actions">
+            <button class="primary-button" type="submit">Generate</button>
+            <button class="secondary-button" id="variantButton" type="button">3 Variants</button>
+          </div>
+          <small>Ctrl / ⌘ + Enter でも生成できます。</small>
+        </form>
+
+        <div class="example-cloud" id="exampleCloud" aria-label="Example prompts"></div>
+
+        <section class="panel-block">
+          <div class="panel-title">
+            <h2>Style</h2>
+            <span id="styleCaption"></span>
+          </div>
+          <div class="style-grid" id="styleGrid"></div>
+        </section>
+
+        <section class="panel-block sliders">
+          <div class="range-row">
+            <label for="widthRange">Width <b id="widthValue"></b></label>
+            <input id="widthRange" type="range" min="32" max="120" step="4" />
+          </div>
+          <div class="range-row">
+            <label for="heightRange">Height <b id="heightValue"></b></label>
+            <input id="heightRange" type="range" min="14" max="56" step="2" />
+          </div>
+          <div class="range-row">
+            <label for="densityRange">Density <b id="densityValue"></b></label>
+            <input id="densityRange" type="range" min="20" max="100" step="5" />
+          </div>
+          <div class="range-row">
+            <label for="contrastRange">Contrast <b id="contrastValue"></b></label>
+            <input id="contrastRange" type="range" min="20" max="130" step="1" />
+          </div>
+          <label class="toggle-line">
+            <input id="invertToggle" type="checkbox" />
+            <span>Invert brightness</span>
+          </label>
+        </section>
+
+        <section class="panel-block">
+          <div class="panel-title">
+            <h2>Palette</h2>
+            <span>見た目だけを変更</span>
+          </div>
+          <div class="palette-grid" id="paletteGrid"></div>
+        </section>
+
+        <section class="panel-block upload-zone" id="dropZone">
+          <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" />
+          <b>画像からASCIIへ</b>
+          <span>クリック、またはここへドロップ</span>
+        </section>
+      </aside>
+
+      <section class="preview-panel" aria-label="ASCII preview">
+        <div class="preview-toolbar">
+          <div>
+            <p class="eyebrow">live canvas</p>
+            <h2 id="artTitle">Untitled artifact</h2>
+          </div>
+          <div class="toolbar-actions">
+            <button class="secondary-button" id="undoButton" type="button">Undo</button>
+            <button class="secondary-button" id="redoButton" type="button">Redo</button>
+            <button class="secondary-button" id="editButton" type="button">Edit</button>
+            <button class="secondary-button" id="fullButton" type="button">Focus</button>
+          </div>
+        </div>
+
+        <div class="meta-strip" id="metaStrip"></div>
+
+        <div class="art-frame" id="artFrame">
+          <pre id="asciiOutput" aria-label="Generated ASCII art"></pre>
+          <textarea id="asciiEditor" spellcheck="false" aria-label="Edit ASCII art"></textarea>
+        </div>
+
+        <div class="preview-footer">
+          <div class="zoom-group" aria-label="Zoom">
+            <button class="icon-button" id="zoomOut" type="button">−</button>
+            <span id="zoomLabel">100%</span>
+            <button class="icon-button" id="zoomIn" type="button">+</button>
+          </div>
+          <div class="export-actions">
+            <button class="secondary-button" id="copyButton" type="button">Copy</button>
+            <button class="secondary-button" id="saveButton" type="button">Save</button>
+            <button class="secondary-button" id="txtButton" type="button">TXT</button>
+            <button class="secondary-button" id="svgButton" type="button">SVG</button>
+            <button class="primary-button" id="pngButton" type="button">PNG</button>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <section class="pitch-section" aria-labelledby="pitchTitle">
-      <div class="pitch-copy">
-        <p class="eyebrow"><span></span> Pitch line</p>
-        <h2 id="pitchTitle">Today, airport staff inspect batteries with their eyes.</h2>
-        <p>Pocket Mine gives them AI eyes.</p>
+    <section class="variant-section" aria-label="Generated variants">
+      <div class="section-head">
+        <p class="eyebrow">parallel sketches</p>
+        <h2>Variants</h2>
       </div>
-      <div class="pitch-grid">
-        <article>
-          <span>01</span>
-          <b>User points camera at power bank</b>
-          <p>Power Bank detected. Risk analysis started.</p>
-        </article>
-        <article>
-          <span>02</span>
-          <b>AI checks shape, swelling, damage, heat, label</b>
-          <p>Damage, Wh limit, and unreadable labels stay visible as evidence.</p>
-        </article>
-        <article>
-          <span>03</span>
-          <b>Result becomes one of three decisions</b>
-          <p>Clear to Fly. Needs Human Check. Do Not Board.</p>
-        </article>
-      </div>
+      <div class="variant-grid" id="variantGrid"></div>
     </section>
   </main>
 
-  <dialog id="cameraDialog">
-    <div class="dialog-head">
-      <h2>Camera Capture</h2>
-      <button class="icon-button" id="closeCamera" title="Close"><span class="material-symbols-rounded">close</span></button>
+  <aside class="shelf-drawer" id="shelfDrawer" aria-label="Saved shelf" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <p class="eyebrow">saved works</p>
+        <h2>Atelier Shelf</h2>
+      </div>
+      <button class="icon-button" id="closeShelf" type="button">×</button>
     </div>
-    <video id="cameraVideo" autoplay playsinline muted></video>
-    <div class="dialog-actions">
-      <button class="secondary-button" id="capturePhoto"><span class="material-symbols-rounded">camera</span><span>Capture</span></button>
+    <div id="shelfList" class="shelf-list"></div>
+  </aside>
+
+  <dialog id="helpDialog">
+    <div class="drawer-head">
+      <div>
+        <p class="eyebrow">tips</p>
+        <h2>使い方</h2>
+      </div>
+      <button class="icon-button" id="closeHelp" type="button">×</button>
     </div>
+    <p>日本語でも英語でもOK。猫、街、山、海、花、宇宙、ドラゴン、ハートなどは自動でモチーフ化されます。</p>
+    <p>完成した文字絵は直接編集でき、TXT / SVG / PNGとして保存できます。処理はブラウザ内で完結します。</p>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -202,562 +202,382 @@ document.querySelector('#app').innerHTML = `
 
 const $ = (selector) => document.querySelector(selector)
 
-function safeParse(key, fallback) {
+function safeJson(value, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(key)) ?? fallback
+    return value ? JSON.parse(value) : fallback
   } catch {
     return fallback
   }
 }
 
-function getActiveBattery() {
-  if (state.selectedId === 'uploaded' && state.uploaded) return state.uploaded
-  return DEMO_BATTERIES.find((battery) => battery.id === state.selectedId) || DEMO_BATTERIES[0]
+function currentPalette() {
+  return palettes.find((palette) => palette.id === state.palette) || palettes[0]
+}
+
+function persistSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    prompt: state.prompt,
+    options: state.options,
+    palette: state.palette,
+    zoom: state.zoom,
+  }))
+}
+
+function generate({ variants = false } = {}) {
+  state.result = generateAscii(state.prompt, state.options)
+  state.status = 'Generated'
+  state.undo = []
+  state.redo = []
+  if (variants) {
+    state.variants = [1, 2, 3].map((shift) => generateAscii(state.prompt, {
+      ...state.options,
+      seedShift: (state.options.seedShift || 0) + shift * 137,
+    }))
+  }
+  persistSettings()
+  render()
+  toast(variants ? '3つの別案を描きました。' : 'ASCIIを生成しました。')
 }
 
 function render() {
-  renderFlow()
-  renderCamera()
-  renderScanSteps()
-  renderResult()
-  renderFlightSearch()
-  renderAtlas()
-  renderSamples()
-  $('#labelInput').value = getActiveBattery().labelText
+  const palette = currentPalette()
+  document.documentElement.style.setProperty('--canvas-bg', palette.bg)
+  document.documentElement.style.setProperty('--canvas-ink', palette.ink)
+  document.documentElement.style.setProperty('--accent', palette.accent)
+  document.documentElement.style.setProperty('--glow', palette.glow)
+  document.body.dataset.palette = palette.id
+
+  $('#promptInput').value = state.prompt
+  $('#widthRange').value = state.options.width
+  $('#heightRange').value = state.options.height
+  $('#densityRange').value = state.options.density
+  $('#contrastRange').value = state.options.contrast
+  $('#invertToggle').checked = state.options.invert
+  $('#widthValue').textContent = state.options.width
+  $('#heightValue').textContent = state.options.height
+  $('#densityValue').textContent = `${state.options.density}%`
+  $('#contrastValue').textContent = `${state.options.contrast}%`
+  $('#zoomLabel').textContent = `${Math.round(state.zoom * 100)}%`
+  $('#artFrame').style.setProperty('--zoom', state.zoom)
+
+  renderExamples()
+  renderStyles()
+  renderPalettes()
+  renderArt()
+  renderVariants()
+  renderShelf()
 }
 
-function renderFlow() {
-  const activeIndex = state.result ? 4 : state.scanning ? Math.min(2, Math.floor((state.scanStep + 1) / 2) + 1) : 0
-  $('#flowStrip').innerHTML = FLOW_STEPS.map((step, index) => `
-    <span class="${index < activeIndex ? 'done' : ''} ${index === activeIndex ? 'active' : ''}">
-      <i>${String(index + 1).padStart(2, '0')}</i>${step}
-    </span>
+function renderExamples() {
+  $('#exampleCloud').innerHTML = examples.map((example) => `
+    <button type="button" data-example="${escapeHtml(example)}">${escapeHtml(example)}</button>
   `).join('')
 }
 
-function renderCamera() {
-  const battery = getActiveBattery()
-  const preview = classifyBattery(battery)
-  const result = state.result
-  const tone = result ? result.tone : state.scanning ? preview.tone : 'idle'
-  const confidence = result || state.scanning ? preview.confidence : 0
-  const copy = cameraCopy(result, state.scanning)
-  const stepText = state.scanning ? SCAN_STEPS[Math.max(0, state.scanStep)] : result ? 'Risk analysis complete.' : 'Show me the power bank.'
-
-  $('#cameraView').className = [
-    'camera-view',
-    tone,
-    state.scanning ? 'scanning' : '',
-    result || state.scanning ? 'detected' : '',
-    battery.signals?.includes('swelling') ? 'has-swelling' : '',
-    battery.signals?.length ? 'has-markers' : '',
-  ].filter(Boolean).join(' ')
-
-  $('#cameraView').innerHTML = `
-    <div class="camera-grid" aria-hidden="true"></div>
-    <div class="radar-sweep" aria-hidden="true"></div>
-    <div class="reticle" aria-hidden="true"></div>
-    <div class="target-wrap">
-      <div class="target-object ${escapeHtml(battery.shape)}" style="--battery:${escapeHtml(battery.color)}">
-        ${renderBatteryObject(battery)}
-        ${(result || state.scanning) ? renderSignalMarkers(battery) : ''}
-      </div>
-      <div class="target-frame">
-        <span></span><span></span><span></span><span></span>
-        <i class="scan-line"></i>
-        <i class="swell-line one"></i>
-        <i class="swell-line two"></i>
-      </div>
-    </div>
-    <div class="detection-card">
-      <b>${result || state.scanning ? 'POWER BANK FOUND' : 'CAMERA READY'}</b>
-      <span>Confidence ${confidence || '--'}%</span>
-    </div>
-    <div class="scan-copy">
-      <b>${copy.title}</b>
-      <span>${copy.detail}</span>
-    </div>
-    <div class="scan-caption">${escapeHtml(stepText)}</div>
-  `
-}
-
-function renderBatteryObject(battery) {
-  if (battery.dataUrl) {
-    return `<div class="uploaded-preview"><img src="${battery.dataUrl}" alt="${escapeHtml(battery.name)}" /></div>`
-  }
-
-  return `
-    <div class="battery-visual ${escapeHtml(battery.shape)}">
-      <span class="battery-label"></span>
-      <span class="battery-port"></span>
-      <span class="battery-light"></span>
-    </div>
-  `
-}
-
-function renderSignalMarkers(battery) {
-  const labels = {
-    swelling: 'SWELL',
-    dent: 'DENT',
-    heat: 'HEAT',
-    leak: 'LEAK',
-    terminal: 'PIN',
-    label: 'LABEL',
-  }
-  return (battery.signals || []).map((signal, index) => `
-    <span class="damage-pin pin-${index + 1}" data-signal="${escapeHtml(signal)}">${labels[signal] || 'RISK'}</span>
-  `).join('')
-}
-
-function cameraCopy(result, scanning) {
-  if (scanning) {
-    return { title: 'Power Bank detected.', detail: 'Risk analysis started.' }
-  }
-  if (!result) {
-    return { title: 'Show me the power bank.', detail: "I'll find the mine." }
-  }
-  if (result.decision === 'carry') {
-    return { title: 'Power Bank detected.', detail: 'Looks clean. This one can fly.' }
-  }
-  if (result.decision === 'review') {
-    return { title: 'Power Bank detected.', detail: 'Human check needed.' }
-  }
-  return { title: 'Pocket Mine detected.', detail: 'Not a bomb. Still a problem.' }
-}
-
-function renderScanSteps() {
-  $('#scanSteps').innerHTML = SCAN_STEPS.map((step, index) => {
-    const done = state.result || (state.scanning && index <= state.scanStep)
-    const active = state.scanning && index === state.scanStep
-    return `
-      <span class="${done ? 'done' : ''} ${active ? 'active' : ''}">
-        <i>${index + 1}</i>${escapeHtml(step)}
-      </span>
-    `
-  }).join('')
-}
-
-function renderResult() {
-  const battery = getActiveBattery()
-  const result = state.result
-  const incident = state.incident
-
-  renderMascot(result)
-
-  if (!result) {
-    $('#resultHero').innerHTML = `
-      <div class="risk-meter empty" style="--score-angle:0deg">
-        <div><span>RISK SCORE</span><b>--</b><em>/ 100</em></div>
-      </div>
-      <div class="decision-block idle">
-        <small>READY</small>
-        <strong>Point camera at a power bank</strong>
-        <p>Start Scan</p>
-      </div>
-    `
-    $('#factorGrid').innerHTML = ['Damage', 'Swelling', 'Heat', 'Wh Limit', 'Label'].map((label) => `
-      <div class="factor neutral"><span>${label}</span><b>Waiting</b></div>
-    `).join('')
-    $('#evidencePanel').innerHTML = `
-      <h3>Evidence</h3>
-      <div class="evidence-list">
-        <span><i></i>Photo pending</span>
-        <span><i></i>AI notes pending</span>
-        <span><i></i>Inspection ID pending</span>
-      </div>
-    `
-    return
-  }
-
-  const riskBand = result.riskScore >= 70 ? 'HIGH RISK' : result.riskScore >= 42 ? 'MEDIUM RISK' : 'LOW RISK'
-  $('#resultHero').innerHTML = `
-    <div class="risk-meter ${result.tone}" style="--score-angle:${result.riskScore * 3.6}deg">
-      <div><span>RISK SCORE</span><b>${result.riskScore}</b><em>/ 100</em></div>
-    </div>
-    <div class="decision-block ${result.tone}">
-      <small>${riskBand}</small>
-      <strong>${escapeHtml(result.decisionLabel)}</strong>
-      <p>${escapeHtml(result.action)}</p>
-    </div>
-  `
-
-  $('#factorGrid').innerHTML = result.factors.map((factor) => `
-    <div class="factor ${escapeHtml(factor.severity)}">
-      <span>${escapeHtml(factor.label)}</span>
-      <b>${escapeHtml(factor.value)}</b>
-    </div>
-  `).join('')
-
-  $('#evidencePanel').innerHTML = `
-    <h3>Evidence</h3>
-    <div class="evidence-list">
-      <span class="done"><i></i>Photo captured</span>
-      <span class="done"><i></i>AI notes saved</span>
-      <span class="done"><i></i>Inspection ID generated</span>
-    </div>
-    <dl>
-      <dt>ID</dt><dd>${escapeHtml(incident.code)}</dd>
-      <dt>Battery</dt><dd>${escapeHtml(battery.name)}</dd>
-      <dt>Wh</dt><dd>${result.label.wh ?? 'Unknown'}</dd>
-      <dt>Notes</dt><dd>${escapeHtml(result.reasons.join(' '))}</dd>
-    </dl>
-  `
-}
-
-function renderMascot(result) {
-  const speech = mascotSpeech(result)
-  $('#mascotPanel').innerHTML = `
-    <img src="${MASCOT_SRC}" alt="Pocket Mine Inspector mascot" />
-    <div>
-      <small>Pocket Mine Inspector</small>
-      <p>${escapeHtml(speech)}</p>
-    </div>
-  `
-}
-
-function mascotSpeech(result) {
-  if (!result) return "Show me the power bank. I'll find the mine."
-  if (!result.label.hasCapacity) return 'I cannot read the Wh label. Human check needed.'
-  if (result.damage.items.some((item) => item.id === 'swelling')) return 'Hmm... this battery looks a little spicy.'
-  if (result.decision === 'carry') return 'Looks clean. This one can fly.'
-  if (result.decision === 'review') return 'Human check needed before this one flies.'
-  return 'Nope. This pocket mine stays on the ground.'
-}
-
-function renderSamples() {
-  const batteries = state.uploaded ? [state.uploaded, ...DEMO_BATTERIES] : DEMO_BATTERIES
-  $('#sampleGrid').innerHTML = batteries.map((battery) => {
-    const result = classifyBattery(battery)
-    return `
-      <button class="sample-card ${battery.id === state.selectedId ? 'active' : ''} ${result.tone}" data-battery="${battery.id}" style="--battery:${escapeHtml(battery.color)}">
-        <span class="sample-id">${escapeHtml(battery.id.toUpperCase())}</span>
-        <div class="sample-image">${renderBatteryObject(battery)}</div>
-        <strong>${escapeHtml(battery.name)}</strong>
-        <small>${escapeHtml(battery.labelText)}</small>
-        <em>${escapeHtml(result.decisionLabel)}</em>
-      </button>
-    `
-  }).join('')
-}
-
-function renderFlightSearch() {
-  const query = state.flightQuery
-  const result = evaluateFlightQuery(query)
-  $('#flyWh').value = query.wh
-  $('#flyAppearance').value = query.appearance
-  $('#flySpare').checked = query.isSpare
-  document.querySelectorAll('[data-bag]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.bag === query.bag)
-  })
-
-  $('#flyResult').innerHTML = `
-    <div class="fly-answer ${result.tone}">
-      <span>CAN IT FLY?</span>
-      <b>${escapeHtml(result.answer)}</b>
-      <em>${escapeHtml(result.decisionLabel)}</em>
-    </div>
-    <div class="fly-rules">
-      <div><span>Carry-on</span><b>${result.carryOnAllowed ? 'Allowed' : 'No'}</b></div>
-      <div><span>Checked bag</span><b>${result.checkedAllowed ? 'Allowed' : result.isSpare ? 'Not allowed' : 'No'}</b></div>
-      <div><span>Appearance</span><b>${escapeHtml(result.appearanceLabel)}</b></div>
-      <div><span>Wh</span><b>${result.wh ?? 'Unknown'}</b></div>
-    </div>
-    <p>${escapeHtml(result.reasons.join(' '))}</p>
-  `
-}
-
-function renderAtlas() {
-  const batteries = state.uploaded ? [state.uploaded, ...DEMO_BATTERIES] : DEMO_BATTERIES
-  const entries = batteries
-    .map((battery) => ({ battery, result: classifyBattery(battery) }))
-    .sort((a, b) => b.result.riskScore - a.result.riskScore)
-  const loggedCases = state.history.length
-  const riskyCases = entries.filter((entry) => entry.result.decision !== 'carry').length + loggedCases
-  const precision = Math.min(96, 78 + riskyCases * 2)
-  const lessonLevel = Math.min(9, 1 + Math.floor((riskyCases + loggedCases) / 2))
-
-  $('#atlasStats').innerHTML = `
-    <div><span>Field detections</span><b>${loggedCases}</b><small>saved as evidence</small></div>
-    <div><span>AI precision</span><b>${precision}%</b><small>demo learning signal</small></div>
-    <div><span>Training level</span><b>Lv.${lessonLevel}</b><small>staff education</small></div>
-  `
-
-  $('#atlasGrid').innerHTML = entries.map(({ battery, result }) => `
-    <button class="atlas-card ${result.tone}" data-battery="${escapeHtml(battery.id)}" style="--battery:${escapeHtml(battery.color)}">
-      <div class="atlas-visual">${renderBatteryObject(battery)}</div>
-      <div>
-        <span>${escapeHtml(result.decisionLabel)}</span>
-        <strong>${escapeHtml(atlasPatternName(battery, result))}</strong>
-        <p>${escapeHtml(atlasLessonFor(battery, result))}</p>
-      </div>
+function renderStyles() {
+  $('#styleCaption').textContent = STYLES[state.options.style]?.label || ''
+  $('#styleGrid').innerHTML = Object.entries(STYLES).map(([id, style]) => `
+    <button class="${id === state.options.style ? 'active' : ''}" type="button" data-style="${id}">
+      <b>${style.label}</b>
+      <small>${style.preview}</small>
     </button>
   `).join('')
 }
 
-function atlasPatternName(battery, result) {
-  if (battery.signals?.includes('swelling')) return 'Spicy Battery'
-  if (battery.signals?.includes('heat')) return 'Heat Marker'
-  if (battery.signals?.includes('label') || !result.label.hasCapacity) return 'Mystery Label'
-  if (result.label.wh > 160) return 'Oversize Pack'
-  if (result.label.wh > 100) return 'Approval Zone'
-  return 'Clean Reference'
+function renderPalettes() {
+  $('#paletteGrid').innerHTML = palettes.map((palette) => `
+    <button class="${palette.id === state.palette ? 'active' : ''}" type="button" data-palette="${palette.id}">
+      <span style="--swatch-bg:${palette.bg};--swatch-ink:${palette.ink};--swatch-accent:${palette.accent}"></span>
+      ${palette.label}
+    </button>
+  `).join('')
 }
 
-function atlasLessonFor(battery, result) {
-  if (battery.signals?.includes('swelling')) return 'Swelling beats Wh. Stop it before the gate.'
-  if (battery.signals?.includes('heat')) return 'Burn marks move the case into manual safety action.'
-  if (battery.signals?.includes('label') || !result.label.hasCapacity) return 'Unreadable Wh labels become human-check training examples.'
-  if (result.label.wh > 160) return 'Over-limit capacity becomes an instant no-board pattern.'
-  if (result.label.wh > 100) return '100-160Wh teaches approval and airline policy checks.'
-  return 'Clean cases improve the visual baseline for fast clearance.'
+function renderArt() {
+  if (!state.result) state.result = generateAscii(state.prompt, state.options)
+  const { art, motif, width, height, style } = state.result
+  $('#asciiOutput').textContent = art
+  $('#asciiEditor').value = art
+  $('#asciiOutput').hidden = state.editing
+  $('#asciiEditor').hidden = !state.editing
+  $('#editButton').textContent = state.editing ? 'Preview' : 'Edit'
+  $('#artTitle').textContent = makeTitle(state.prompt)
+  $('#motifBadge').textContent = `motif: ${MOTIF_LABELS[motif] || motif}`
+  $('#metaStrip').innerHTML = [
+    `${width} × ${height}`,
+    `${art.length.toLocaleString()} glyphs`,
+    STYLES[style]?.label || style,
+    MOTIF_LABELS[motif] || motif,
+    state.status,
+  ].map((item) => `<span>${escapeHtml(item)}</span>`).join('')
+  $('#undoButton').disabled = state.undo.length === 0
+  $('#redoButton').disabled = state.redo.length === 0
 }
 
-async function runScan(forceBatteryId) {
-  if (forceBatteryId) state.selectedId = forceBatteryId
-  const battery = getActiveBattery()
-  state.scanning = true
-  state.scanStep = -1
-  state.result = null
-  state.incident = null
-  $('#runScan').disabled = true
+function renderVariants() {
+  $('#variantGrid').innerHTML = state.variants.length
+    ? state.variants.map((variant, index) => `
+      <button type="button" data-variant="${index}">
+        <b>Variant ${index + 1}</b>
+        <pre>${escapeHtml(variant.art.split('\n').slice(0, 10).join('\n'))}</pre>
+      </button>
+    `).join('')
+    : `<p class="empty-note">3 Variants を押すと、同じお題から別の構図を並べます。</p>`
+}
 
-  for (let index = 0; index < SCAN_STEPS.length; index += 1) {
-    state.scanStep = index
-    renderFlow()
-    renderCamera()
-    renderScanSteps()
-    await wait(360)
+function renderShelf() {
+  $('#shelfCount').textContent = String(state.shelf.length)
+  $('#shelfList').innerHTML = state.shelf.length
+    ? state.shelf.map((item, index) => `
+      <article>
+        <button type="button" data-load-shelf="${index}">
+          <b>${escapeHtml(item.title)}</b>
+          <small>${escapeHtml(item.prompt)}</small>
+          <pre>${escapeHtml(item.art.split('\n').slice(0, 8).join('\n'))}</pre>
+        </button>
+        <button class="danger-link" type="button" data-delete-shelf="${index}">Delete</button>
+      </article>
+    `).join('')
+    : '<p class="empty-note">まだ保存された作品はありません。</p>'
+}
+
+function makeTitle(prompt) {
+  const motif = detectMotif(prompt)
+  return `${MOTIF_LABELS[motif] || '未知の紋章'} / ${prompt.trim().slice(0, 32) || 'Untitled'}`
+}
+
+function pushUndo() {
+  if (!state.result) return
+  state.undo.push(state.result.art)
+  if (state.undo.length > 40) state.undo.shift()
+  state.redo = []
+}
+
+function setArt(art, status = 'Edited') {
+  state.result = {
+    ...(state.result || generateAscii(state.prompt, state.options)),
+    art,
+    width: Math.max(...art.split('\n').map((line) => line.length)),
+    height: art.split('\n').length,
   }
-
-  const result = await analyzeWithOptionalGoogleEndpoint(battery)
-  const incident = createIncidentRecord(battery, result)
-  state.result = result
-  state.incident = incident
-  state.history = [incident, ...state.history].slice(0, 20)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.history))
-
-  state.scanning = false
-  state.scanStep = -1
-  $('#runScan').disabled = false
-  render()
-  toast(result.decision === 'isolate' ? 'Pocket mine detected. Manual action required.' : 'Scan complete.', result.tone)
+  state.status = status
+  renderArt()
 }
 
-async function analyzeWithOptionalGoogleEndpoint(battery) {
-  const endpoint = window.POCKET_MINE_GOOGLE_ENDPOINT
-  if (!endpoint) return classifyBattery(battery)
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        image: battery.dataUrl || null,
-        labelText: battery.labelText,
-        prompt: buildGeminiPrompt(battery.labelText),
-      }),
-    })
-    if (!response.ok) throw new Error(`Google endpoint ${response.status}`)
-    return { ...classifyBattery(battery), ...(await response.json()) }
-  } catch (error) {
-    console.warn(error)
-    toast('Google endpoint failed. Demo rules are active.', 'review')
-    return classifyBattery(battery)
-  }
-}
-
-function selectBattery(id) {
-  state.selectedId = id
-  state.result = null
-  state.incident = null
-  render()
-}
-
-function updateUploadedFromLabel() {
-  if (state.selectedId !== 'uploaded') return
-  state.uploaded = makeUploadedBattery({
-    labelText: $('#labelInput').value,
-    dataUrl: state.uploaded?.dataUrl,
-  })
-  state.result = null
-  state.incident = null
-  renderCamera()
-  renderResult()
-  renderSamples()
-}
-
-async function handlePhoto(file) {
-  if (!file) return
-  if (!file.type.startsWith('image/')) return toast('Choose an image file.', 'danger')
-  const dataUrl = await readFileAsDataUrl(file)
-  state.uploaded = makeUploadedBattery({
-    labelText: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
-    dataUrl,
-  })
-  selectBattery('uploaded')
-  toast('Photo captured.')
-}
-
-async function openCamera() {
-  const dialog = $('#cameraDialog')
-  try {
-    state.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-    $('#cameraVideo').srcObject = state.cameraStream
-    dialog.showModal()
-  } catch {
-    toast('Camera is not available in this environment.', 'danger')
-  }
-}
-
-function closeCamera() {
-  state.cameraStream?.getTracks().forEach((track) => track.stop())
-  state.cameraStream = null
-  $('#cameraDialog').close()
-}
-
-function capturePhoto() {
-  const video = $('#cameraVideo')
-  const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth || 1280
-  canvas.height = video.videoHeight || 720
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return toast('Capture failed.', 'danger')
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  state.uploaded = makeUploadedBattery({
-    labelText: 'camera capture label unreadable',
-    dataUrl: canvas.toDataURL('image/jpeg', 0.86),
-  })
-  closeCamera()
-  selectBattery('uploaded')
-  toast('Camera frame captured.')
-}
-
-function copyReport() {
-  const battery = getActiveBattery()
-  const result = state.result || classifyBattery(battery)
-  const incident = state.incident || createIncidentRecord(battery, result)
-  const factors = result.factors.map((factor) => `${factor.label}: ${factor.value}`).join(', ')
-  const report = [
-    `Pocket Mine decision: ${result.decisionLabel}`,
-    `Target: ${battery.name}`,
-    `Risk score: ${result.riskScore}/100`,
-    `Capacity: ${result.label.wh ?? 'Unknown'}Wh`,
-    `Action: ${result.action}`,
-    `Factors: ${factors}`,
-    `Inspection ID: ${incident.code}`,
-  ].join('\n')
-  navigator.clipboard?.writeText(report).then(
-    () => toast('Briefing copied.'),
-    () => downloadTextReport(report, `pocket-mine-${incident.code}.txt`),
-  )
-}
-
-function exportJson() {
-  const battery = getActiveBattery()
-  const result = state.result || classifyBattery(battery)
-  const incident = state.incident || createIncidentRecord(battery, result)
-  downloadJson({ battery, result, incident }, `pocket-mine-${incident.code}.json`)
-  toast('Evidence JSON exported.')
-}
-
-function resetDemo() {
-  state.selectedId = 'pm-005'
-  state.uploaded = null
-  state.result = null
-  state.incident = null
-  state.scanning = false
-  state.scanStep = -1
-  render()
-}
-
-function bindEvents() {
-  $('#sampleGrid').addEventListener('click', (event) => {
-    const card = event.target.closest('[data-battery]')
-    if (card) selectBattery(card.dataset.battery)
-  })
-  $('#atlasGrid').addEventListener('click', (event) => {
-    const card = event.target.closest('[data-battery]')
-    if (card) selectBattery(card.dataset.battery)
-  })
-  $('#flyWh').addEventListener('input', (event) => {
-    state.flightQuery.wh = event.target.value
-    renderFlightSearch()
-  })
-  $('#flyAppearance').addEventListener('change', (event) => {
-    state.flightQuery.appearance = event.target.value
-    renderFlightSearch()
-  })
-  $('#flySpare').addEventListener('change', (event) => {
-    state.flightQuery.isSpare = event.target.checked
-    renderFlightSearch()
-  })
-  $('#bagToggle').addEventListener('click', (event) => {
-    const button = event.target.closest('[data-bag]')
-    if (!button) return
-    state.flightQuery.bag = button.dataset.bag
-    renderFlightSearch()
-  })
-  $('#labelInput').addEventListener('input', () => {
-    const battery = getActiveBattery()
-    if (state.selectedId === 'uploaded') {
-      updateUploadedFromLabel()
-    } else {
-      state.uploaded = {
-        ...battery,
-        id: 'uploaded',
-        name: `${battery.name} copy`,
-        labelText: $('#labelInput').value,
-      }
-      state.selectedId = 'uploaded'
-      state.result = null
-      state.incident = null
-      renderCamera()
-      renderResult()
-      renderSamples()
-    }
-  })
-  $('#photoInput').addEventListener('change', (event) => handlePhoto(event.target.files[0]))
-  $('#openCamera').addEventListener('click', openCamera)
-  $('#openCameraTop').addEventListener('click', openCamera)
-  $('#closeCamera').addEventListener('click', closeCamera)
-  $('#capturePhoto').addEventListener('click', capturePhoto)
-  $('#runScan').addEventListener('click', () => runScan())
-  $('#demoMoment').addEventListener('click', () => runScan('pm-005'))
-  $('#copyReport').addEventListener('click', copyReport)
-  $('#exportJson').addEventListener('click', exportJson)
-  $('#resetDemo').addEventListener('click', resetDemo)
-  $('#cameraDialog').addEventListener('close', () => {
-    state.cameraStream?.getTracks().forEach((track) => track.stop())
-    state.cameraStream = null
-  })
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function toast(message, tone = 'safe') {
-  const element = $('#toast')
-  element.textContent = message
-  element.dataset.tone = tone
-  element.classList.add('visible')
+function toast(message) {
+  const node = $('#toast')
+  node.textContent = message
+  node.classList.add('show')
   clearTimeout(toast.timer)
-  toast.timer = setTimeout(() => element.classList.remove('visible'), 2600)
+  toast.timer = setTimeout(() => node.classList.remove('show'), 2200)
 }
 
 function escapeHtml(value) {
-  const span = document.createElement('span')
-  span.textContent = String(value ?? '')
-  return span.innerHTML
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
 }
 
-render()
+function bindEvents() {
+  $('#promptForm').addEventListener('submit', (event) => {
+    event.preventDefault()
+    state.prompt = $('#promptInput').value.trim() || '静かな夜に光る小さな記号'
+    generate()
+  })
+
+  $('#promptInput').addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') $('#promptForm').requestSubmit()
+  })
+
+  $('#variantButton').addEventListener('click', () => {
+    state.prompt = $('#promptInput').value.trim() || state.prompt
+    generate({ variants: true })
+  })
+
+  $('#randomPrompt').addEventListener('click', () => {
+    const current = examples.indexOf(state.prompt)
+    state.prompt = examples[(current + 1 + Math.floor(Math.random() * (examples.length - 1))) % examples.length]
+    generate({ variants: true })
+  })
+
+  $('#exampleCloud').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-example]')
+    if (!button) return
+    state.prompt = button.dataset.example
+    generate()
+  })
+
+  $('#styleGrid').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-style]')
+    if (!button) return
+    state.options.style = button.dataset.style
+    generate()
+  })
+
+  $('#paletteGrid').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-palette]')
+    if (!button) return
+    state.palette = button.dataset.palette
+    persistSettings()
+    render()
+  })
+
+  for (const [id, key] of [['widthRange', 'width'], ['heightRange', 'height'], ['densityRange', 'density'], ['contrastRange', 'contrast']]) {
+    $(`#${id}`).addEventListener('input', (event) => {
+      state.options[key] = Number(event.target.value)
+      generate()
+    })
+  }
+
+  $('#invertToggle').addEventListener('change', (event) => {
+    state.options.invert = event.target.checked
+    generate()
+  })
+
+  $('#asciiEditor').addEventListener('input', (event) => {
+    pushUndo()
+    setArt(event.target.value)
+  })
+
+  $('#editButton').addEventListener('click', () => {
+    state.editing = !state.editing
+    renderArt()
+  })
+
+  $('#undoButton').addEventListener('click', () => {
+    if (!state.undo.length) return
+    state.redo.push(state.result.art)
+    setArt(state.undo.pop(), 'Undo')
+  })
+
+  $('#redoButton').addEventListener('click', () => {
+    if (!state.redo.length) return
+    state.undo.push(state.result.art)
+    setArt(state.redo.pop(), 'Redo')
+  })
+
+  $('#zoomOut').addEventListener('click', () => {
+    state.zoom = Math.max(0.6, Math.round((state.zoom - 0.1) * 10) / 10)
+    persistSettings()
+    render()
+  })
+
+  $('#zoomIn').addEventListener('click', () => {
+    state.zoom = Math.min(1.8, Math.round((state.zoom + 0.1) * 10) / 10)
+    persistSettings()
+    render()
+  })
+
+  $('#fullButton').addEventListener('click', () => $('#artFrame').requestFullscreen?.())
+
+  $('#copyButton').addEventListener('click', async () => {
+    await navigator.clipboard.writeText(state.result.art)
+    toast('クリップボードにコピーしました。')
+  })
+
+  $('#saveButton').addEventListener('click', () => {
+    const item = {
+      title: makeTitle(state.prompt),
+      prompt: state.prompt,
+      options: state.options,
+      palette: state.palette,
+      art: state.result.art,
+      savedAt: new Date().toISOString(),
+    }
+    state.shelf.unshift(item)
+    state.shelf = state.shelf.slice(0, 24)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.shelf))
+    renderShelf()
+    toast('Atelier Shelf に保存しました。')
+  })
+
+  $('#txtButton').addEventListener('click', () => downloadText(`${makeTitle(state.prompt)}.txt`, state.result.art))
+  $('#svgButton').addEventListener('click', () => downloadSvg(`${makeTitle(state.prompt)}.svg`, state.result.art, currentPalette()))
+  $('#pngButton').addEventListener('click', () => downloadPng(`${makeTitle(state.prompt)}.png`, state.result.art, currentPalette()))
+
+  $('#variantGrid').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-variant]')
+    if (!button) return
+    state.result = state.variants[Number(button.dataset.variant)]
+    state.status = 'Variant selected'
+    state.editing = false
+    render()
+    toast('別案をキャンバスに移しました。')
+  })
+
+  $('#openShelf').addEventListener('click', () => {
+    $('#shelfDrawer').classList.add('open')
+    $('#shelfDrawer').setAttribute('aria-hidden', 'false')
+  })
+  $('#closeShelf').addEventListener('click', () => {
+    $('#shelfDrawer').classList.remove('open')
+    $('#shelfDrawer').setAttribute('aria-hidden', 'true')
+  })
+
+  $('#shelfList').addEventListener('click', (event) => {
+    const load = event.target.closest('[data-load-shelf]')
+    const remove = event.target.closest('[data-delete-shelf]')
+    if (load) {
+      const item = state.shelf[Number(load.dataset.loadShelf)]
+      state.prompt = item.prompt
+      state.options = { ...defaultOptions, ...item.options }
+      state.palette = item.palette || state.palette
+      state.result = {
+        art: item.art,
+        motif: detectMotif(item.prompt),
+        width: Math.max(...item.art.split('\n').map((line) => line.length)),
+        height: item.art.split('\n').length,
+        style: state.options.style,
+      }
+      state.status = 'Loaded'
+      $('#shelfDrawer').classList.remove('open')
+      render()
+    }
+    if (remove) {
+      state.shelf.splice(Number(remove.dataset.deleteShelf), 1)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.shelf))
+      renderShelf()
+    }
+  })
+
+  $('#openHelp').addEventListener('click', () => $('#helpDialog').showModal())
+  $('#closeHelp').addEventListener('click', () => $('#helpDialog').close())
+
+  const dropZone = $('#dropZone')
+  const imageInput = $('#imageInput')
+  dropZone.addEventListener('click', () => imageInput.click())
+  dropZone.addEventListener('dragover', (event) => {
+    event.preventDefault()
+    dropZone.classList.add('dragging')
+  })
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'))
+  dropZone.addEventListener('drop', (event) => {
+    event.preventDefault()
+    dropZone.classList.remove('dragging')
+    const file = event.dataTransfer.files?.[0]
+    if (file) convertImage(file)
+  })
+  imageInput.addEventListener('change', (event) => {
+    const file = event.target.files?.[0]
+    if (file) convertImage(file)
+  })
+}
+
+async function convertImage(file) {
+  try {
+    state.result = await imageToAscii(file, state.options)
+    state.prompt = `画像変換: ${file.name}`
+    state.status = 'Image converted'
+    state.editing = false
+    persistSettings()
+    render()
+    toast('画像をASCIIに変換しました。')
+  } catch (error) {
+    toast(error.message || '画像変換に失敗しました。')
+  }
+}
+
 bindEvents()
+generate({ variants: true })

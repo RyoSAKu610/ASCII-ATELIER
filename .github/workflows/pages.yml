@@ -1,4 +1,4 @@
-name: Deploy Pocket Mine to GitHub Pages
+name: Deploy ASCII ATELIER to GitHub Pages
 
 on:
   push:

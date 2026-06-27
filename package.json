@@ -1,14 +1,14 @@
 {
-  "name": "pocket-mine",
+  "name": "ascii-atelier",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A Google-powered airport battery screening demo for the Pocket Mine hackathon pitch.",
+  "description": "A beautiful browser atelier for generating, editing, saving, and exporting ASCII art from prompts or images.",
   "scripts": {
     "dev": "node scripts/server.mjs",
     "start": "node scripts/server.mjs",
     "test": "node --test",
-    "check": "node --check src/app.js && node --check src/analyzer.js && node --check src/export.js && node --test"
+    "check": "node --check src/app.js && node --check src/generator.js && node --check src/export.js && node --test"
   },
   "engines": {
     "node": ">=20"
