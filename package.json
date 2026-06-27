@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "start": "vite --host 0.0.0.0 --port 4173",
+    "demo": "vite --host 0.0.0.0 --port 4173",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "npm run test && npm run build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "vite": "latest",
+    "vitest": "latest",
+    "typescript": "latest"
+  },
+  "devDependencies": {}
+}

@@ -1,39 +1,43 @@
-# Pocket-mine
-Pocket Mine lets airports scan power banks with AI, detect fire-risk batteries before boarding, and turn collected batteries into traceable recyclable resources.
-## Pocket Mine — Comical App Feature Description
+# Pocket Mine
 
-**Pocket Mine** is an AI safety app for airports that looks at your power bank and asks the question nobody wants to ask at 30,000 feet:
+Pocket Mine is a professional airport AI demo that screens passenger power banks before boarding, flags lithium-ion fire risks, and turns collected batteries into traceable recyclable resources.
 
-**“Is this little rectangle about to become spicy?”**
+## Demo concept
 
-Millions of passengers carry power banks every day. Most are harmless. Some are old, swollen, damaged, mysterious, unlabeled, or suspiciously warm — basically tiny pocket goblins with lithium inside.
+The app simulates a security-lane workstation for mobile battery inspection:
 
-That is where **Pocket Mine** comes in.
+- **AI battery judgment**: reads label-like text, estimates Wh, and classifies batteries as `持ち込み可能`, `確認が必要`, or `今すぐ隔離`.
+- **Professional airport dashboard**: live battery queue, scan animation, action guidance, and structured JSON briefing for operational handoff.
+- **Google Cloud architecture placeholder**: the UI presents Gemini, Cloud Vision OCR, Vertex AI, Cloud Run, Firebase, and BigQuery as the intended production stack.
+- **Collection reward system**: every 10th collected battery triggers a “びっくら本” style prize moment, making safe disposal feel participatory while keeping the experience suitable for a serious airport demo.
 
-Airport staff take one photo of a power bank or battery. Pocket Mine reads the label, checks the capacity, looks at the shape, and searches for visible danger signs like swelling, cracks, dents, burn marks, or missing safety information.
+## Try immediately
 
-Then it gives a simple decision:
+### Option A: no setup
 
-**Safe to Fly**
-This battery looks normal. Let it board.
+Open `demo.html` directly in a browser. It is a self-contained HTML/CSS/JS version of the Pocket Mine demo for instant review.
 
-**Needs Review**
-Something feels weird. A human should check it.
+### Option B: local Vite app
 
-**Isolate Now**
-This battery is giving “please do not put me on an airplane” energy.
+```bash
+npm install
+npm start
+```
 
-Pocket Mine helps airport teams spot risky batteries before the aircraft door closes. It turns battery inspection from “Hmm… looks okay?” into a clear AI-assisted safety workflow.
+Then open <http://127.0.0.1:4173>. You can also run `npm run demo` for the same fixed-port demo server.
 
-But the story does not end with removing bad batteries.
+## Checks
 
-Collected batteries are not just trash. They are tiny treasure chests filled with lithium, copper, nickel, and cobalt — materials used in batteries, energy storage, and AI infrastructure.
+```bash
+npm run check
+```
 
-So Pocket Mine does two things at once:
+This runs the analyzer tests and builds the production bundle.
 
-It keeps fire-risk batteries off planes.
-And it turns pocket-sized danger into trackable airport treasure.
+## Production connection idea
 
-**Pocket Mine.**
-Let AI read the battery before the battery starts its villain arc.
-
+1. Use Cloud Vision OCR to extract printed capacity, voltage, certification marks, and warning labels.
+2. Send OCR text plus image observations to Gemini / Vertex AI for structured risk reasoning.
+3. Store inspection results in Firebase for the live operator UI.
+4. Export anonymized airport safety and recycling metrics to BigQuery.
+5. Deploy the demo shell and API adapter on Cloud Run.
