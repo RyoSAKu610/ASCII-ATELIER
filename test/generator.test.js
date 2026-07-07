@@ -23,6 +23,12 @@ test('generates the requested canvas bounds', () => {
   assert.ok(lines.every((line) => line.length <= 48))
 })
 
+test('prioritises recognisable structure glyphs', () => {
+  const cat = generateAscii('月を見上げる黒猫', { width: 72, height: 30, craft: 95 })
+  assert.match(cat.art, /[()\/\\|_^o]/)
+  assert.ok(cat.craftNotes.some((note) => note.includes('whiskers') || note.includes('structure')))
+})
+
 test('all visual styles produce non-empty art', () => {
   for (const style of Object.keys(STYLES)) {
     const result = generateAscii('robot in a small room', { style, width: 44, height: 18 })
@@ -33,6 +39,6 @@ test('all visual styles produce non-empty art', () => {
 test('empty prompts fall back safely', () => {
   const result = generateAscii('', { width: 36, height: 16, style: 'unknown' })
   assert.equal(result.motif, 'abstract')
-  assert.equal(result.style, 'classic')
+  assert.equal(result.style, 'etch')
   assert.equal(result.art.split('\n').length, 16)
 })

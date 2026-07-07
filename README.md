@@ -5,14 +5,33 @@ ASCII ATELIER is a local-first browser studio that turns a prompt or image into 
 ## Features
 
 - Prompt-to-ASCII generation with Japanese and English motif detection
-- Motifs for cats, robots, mountains, cities, ocean scenes, flowers, space, dragons, hearts, and abstract forms
-- Five visual styles: Classic, Soft Shade, Noir Ink, Cyber Glyph, and Block Poster
-- Controls for width, height, density, contrast, invert, zoom, and color palette
+- Motifs for cats, robots, mountains, cities, ocean scenes, flowers, space, dragons, hearts, birds, trees, and abstract forms
+- Six visual styles: Line Etching, Classic, Soft Shade, Noir Ink, Cyber Glyph, and Block Poster
+- Structure-first generation: motif-specific outlines, curves, feature points, tone fill, prompt effects, and a final polish pass
+- Controls for width, height, density, contrast, craft, invert, zoom, and color palette
 - 3-variant sketch generation
 - Direct editing with undo / redo
-- Image-to-ASCII conversion in the browser
+- Edge-aware image-to-ASCII conversion in the browser
 - Local shelf using `localStorage`
 - Export to TXT, SVG, and PNG
+
+## Quality model
+
+ASCII ATELIER does not treat ASCII art as a plain brightness conversion. The current engine uses a three-layer process inspired by classic ASCII art practice:
+
+1. Structure pass: draw the recognisable skeleton first, such as cat ears and whiskers, city horizons, dragon spines, mountain ridges, or wave bands.
+2. Tone pass: fill the form with density-controlled shade characters.
+3. Polish pass: clean isolated noise, preserve negative space, add small feature glyphs, and expose craft notes in the UI.
+
+The `Craft` slider controls how strongly the renderer prefers deliberate line glyphs over raw tone texture.
+
+### References used for the craft pass
+
+- Christopher Johnson’s ASCII Art Collection tutorials: https://asciiart.website/tutorials.php
+- Rowan Crawford, ASCII Graphical Techniques: https://www.roysac.com/tutorial/rowanasciiarttutorial.html
+- Maija Haavisto / DiamonDie ASCII Art Tutorial: https://www.roysac.com/tutorial/diamondieasciiarttutorial.html
+- Structure-based ASCII Art paper: https://ttwong12.github.io/papers/asciiart/asciiart.pdf
+- Chafa renderer notes on preprocessing, dithering, and symbol ranges: https://hpjansson.org/blag/2019/01/07/the-worst-ansi-renderer-except-for-all-the-others/
 
 ## Run locally
 

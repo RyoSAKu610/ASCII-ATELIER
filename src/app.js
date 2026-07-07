@@ -1,8 +1,8 @@
 import { MOTIF_LABELS, STYLES, defaultOptions, detectMotif, generateAscii, imageToAscii } from './generator.js'
 import { downloadPng, downloadSvg, downloadText } from './export.js'
 
-const STORAGE_KEY = 'ascii-atelier-shelf-v2'
-const SETTINGS_KEY = 'ascii-atelier-settings-v2'
+const STORAGE_KEY = 'ascii-atelier-shelf-v4'
+const SETTINGS_KEY = 'ascii-atelier-settings-v4'
 
 const examples = [
   '雨の東京をネオン調で',
@@ -10,6 +10,8 @@ const examples = [
   '古い端末で眠るロボット',
   '星の海を泳ぐドラゴン',
   '花が咲く小さな山小屋',
+  '森に立つ古い樹',
+  '夜明けの鳥が羽ばたく',
   'cyberpunk skyline at midnight',
 ]
 
@@ -92,19 +94,23 @@ document.querySelector('#app').innerHTML = `
         <section class="panel-block sliders">
           <div class="range-row">
             <label for="widthRange">Width <b id="widthValue"></b></label>
-            <input id="widthRange" type="range" min="32" max="120" step="4" />
+            <input id="widthRange" type="range" min="32" max="156" step="4" />
           </div>
           <div class="range-row">
             <label for="heightRange">Height <b id="heightValue"></b></label>
-            <input id="heightRange" type="range" min="14" max="56" step="2" />
+            <input id="heightRange" type="range" min="14" max="76" step="2" />
           </div>
           <div class="range-row">
             <label for="densityRange">Density <b id="densityValue"></b></label>
-            <input id="densityRange" type="range" min="20" max="100" step="5" />
+            <input id="densityRange" type="range" min="10" max="130" step="5" />
           </div>
           <div class="range-row">
             <label for="contrastRange">Contrast <b id="contrastValue"></b></label>
-            <input id="contrastRange" type="range" min="20" max="130" step="1" />
+            <input id="contrastRange" type="range" min="20" max="170" step="1" />
+          </div>
+          <div class="range-row">
+            <label for="craftRange">Craft <b id="craftValue"></b></label>
+            <input id="craftRange" type="range" min="0" max="100" step="1" />
           </div>
           <label class="toggle-line">
             <input id="invertToggle" type="checkbox" />
@@ -142,6 +148,7 @@ document.querySelector('#app').innerHTML = `
         </div>
 
         <div class="meta-strip" id="metaStrip"></div>
+        <div class="craft-notes" id="craftNotes" aria-label="Craft notes"></div>
 
         <div class="art-frame" id="artFrame">
           <pre id="asciiOutput" aria-label="Generated ASCII art"></pre>
@@ -194,6 +201,7 @@ document.querySelector('#app').innerHTML = `
       <button class="icon-button" id="closeHelp" type="button">×</button>
     </div>
     <p>日本語でも英語でもOK。猫、街、山、海、花、宇宙、ドラゴン、ハートなどは自動でモチーフ化されます。</p>
+    <p>Craft を上げるほど、輪郭線・曲線・特徴点を優先した「手描きASCII」寄りになります。下げると画像処理っぽい粒状の表現になります。</p>
     <p>完成した文字絵は直接編集でき、TXT / SVG / PNGとして保存できます。処理はブラウザ内で完結します。</p>
   </dialog>
 
@@ -252,11 +260,13 @@ function render() {
   $('#heightRange').value = state.options.height
   $('#densityRange').value = state.options.density
   $('#contrastRange').value = state.options.contrast
+  $('#craftRange').value = state.options.craft
   $('#invertToggle').checked = state.options.invert
   $('#widthValue').textContent = state.options.width
   $('#heightValue').textContent = state.options.height
   $('#densityValue').textContent = `${state.options.density}%`
   $('#contrastValue').textContent = `${state.options.contrast}%`
+  $('#craftValue').textContent = `${state.options.craft}%`
   $('#zoomLabel').textContent = `${Math.round(state.zoom * 100)}%`
   $('#artFrame').style.setProperty('--zoom', state.zoom)
 
@@ -293,11 +303,11 @@ function renderPalettes() {
   `).join('')
 }
 
-function renderArt() {
+function renderArt({ syncEditor = true } = {}) {
   if (!state.result) state.result = generateAscii(state.prompt, state.options)
   const { art, motif, width, height, style } = state.result
   $('#asciiOutput').textContent = art
-  $('#asciiEditor').value = art
+  if (syncEditor) $('#asciiEditor').value = art
   $('#asciiOutput').hidden = state.editing
   $('#asciiEditor').hidden = !state.editing
   $('#editButton').textContent = state.editing ? 'Preview' : 'Edit'
@@ -307,9 +317,13 @@ function renderArt() {
     `${width} × ${height}`,
     `${art.length.toLocaleString()} glyphs`,
     STYLES[style]?.label || style,
+    `Craft ${state.options.craft}%`,
     MOTIF_LABELS[motif] || motif,
     state.status,
   ].map((item) => `<span>${escapeHtml(item)}</span>`).join('')
+  $('#craftNotes').innerHTML = (state.result.craftNotes || [])
+    .map((note) => `<span>${escapeHtml(note)}</span>`)
+    .join('')
   $('#undoButton').disabled = state.undo.length === 0
   $('#redoButton').disabled = state.redo.length === 0
 }
@@ -353,15 +367,16 @@ function pushUndo() {
   state.redo = []
 }
 
-function setArt(art, status = 'Edited') {
+function setArt(art, status = 'Edited', { syncEditor = true } = {}) {
   state.result = {
     ...(state.result || generateAscii(state.prompt, state.options)),
     art,
     width: Math.max(...art.split('\n').map((line) => line.length)),
     height: art.split('\n').length,
+    craftNotes: ['direct text edit', 'manual refinement preserved', 'export uses the edited canvas'],
   }
   state.status = status
-  renderArt()
+  renderArt({ syncEditor })
 }
 
 function toast(message) {
@@ -424,7 +439,7 @@ function bindEvents() {
     render()
   })
 
-  for (const [id, key] of [['widthRange', 'width'], ['heightRange', 'height'], ['densityRange', 'density'], ['contrastRange', 'contrast']]) {
+  for (const [id, key] of [['widthRange', 'width'], ['heightRange', 'height'], ['densityRange', 'density'], ['contrastRange', 'contrast'], ['craftRange', 'craft']]) {
     $(`#${id}`).addEventListener('input', (event) => {
       state.options[key] = Number(event.target.value)
       generate()
@@ -438,7 +453,7 @@ function bindEvents() {
 
   $('#asciiEditor').addEventListener('input', (event) => {
     pushUndo()
-    setArt(event.target.value)
+    setArt(event.target.value, 'Edited', { syncEditor: false })
   })
 
   $('#editButton').addEventListener('click', () => {
