@@ -8,6 +8,8 @@ ASCII ATELIER is a local-first browser studio that turns a prompt or image into 
 - Motifs for cats, robots, mountains, cities, ocean scenes, flowers, space, dragons, hearts, birds, trees, and abstract forms
 - Six visual styles: Line Etching, Classic, Soft Shade, Noir Ink, Cyber Glyph, and Block Poster
 - Structure-first generation: motif-specific outlines, curves, feature points, tone fill, prompt effects, and a final polish pass
+- Infinite prompt sampling through Prompt Forge, seeded by award-winning and high-quality text-art study cards
+- Masterpiece Trail for browsing contest winners, renowned ANSI/ASCII collections, and quality references in order or at random
 - Controls for width, height, density, contrast, craft, invert, zoom, and color palette
 - 3-variant sketch generation
 - Direct editing with undo / redo
@@ -25,6 +27,17 @@ ASCII ATELIER does not treat ASCII art as a plain brightness conversion. The cur
 
 The `Craft` slider controls how strongly the renderer prefers deliberate line glyphs over raw tone texture.
 
+## Masterpiece Trail and Prompt Forge
+
+The app includes a curated study trail of award-winning or historically strong text-art sources. It does not embed or redistribute the original artwork. Instead, each card stores:
+
+- title, contest or collection context, and source link
+- a craft lesson distilled from the work or scene culture
+- style, palette, and canvas defaults for original generated studies
+- prompt fragments used by the infinite sampler
+
+`∞ Prompt Forge` can keep producing new prompts from these study cards, while `Masterpiece Trail` lets users move through the sources sequentially or randomly and open the original source externally.
+
 ### References used for the craft pass
 
 - Christopher Johnson’s ASCII Art Collection tutorials: https://asciiart.website/tutorials.php
@@ -32,6 +45,12 @@ The `Craft` slider controls how strongly the renderer prefers deliberate line gl
 - Maija Haavisto / DiamonDie ASCII Art Tutorial: https://www.roysac.com/tutorial/diamondieasciiarttutorial.html
 - Structure-based ASCII Art paper: https://ttwong12.github.io/papers/asciiart/asciiart.pdf
 - Chafa renderer notes on preprocessing, dithering, and symbol ranges: https://hpjansson.org/blag/2019/01/07/the-worst-ansi-renderer-except-for-all-the-others/
+- Realms of Despair ASCII Art Contest winners: https://realmsofdespair.com/index.php/ascii-art-contest/
+- Revision 2024 textmode graphics competition listings: https://demozoo.org/parties/4791/
+- CAFe 2019 oldschool textmode graphics listings: https://demozoo.org/parties/3727/
+- 16colo.rs Blocktronics archive: https://16colo.rs/group/blocktronics
+- IOCCC ASCII-shaped source-code overview: https://dan.gop/articles/ioccc-ascii-art/
+- Roy/SAC Best Of text-art gallery: https://www.roysac.com/roy_bestof.html
 
 ## Run locally
 

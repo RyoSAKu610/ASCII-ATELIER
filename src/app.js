@@ -1,5 +1,14 @@
 import { MOTIF_LABELS, STYLES, defaultOptions, detectMotif, generateAscii, imageToAscii } from './generator.js'
 import { downloadPng, downloadSvg, downloadText } from './export.js'
+import {
+  MASTERPIECE_TRAIL,
+  getTrailEntry,
+  makeInfiniteSamples,
+  makeSamplePrompt,
+  makeStudyPrompt,
+  randomTrailIndex,
+  trailIndex,
+} from './inspirations.js'
 
 const STORAGE_KEY = 'ascii-atelier-shelf-v4'
 const SETTINGS_KEY = 'ascii-atelier-settings-v4'
@@ -36,6 +45,10 @@ const state = {
   result: null,
   variants: [],
   shelf: safeJson(localStorage.getItem(STORAGE_KEY), []),
+  inspirationIndex: savedSettings.inspirationIndex || 0,
+  sampleCursor: savedSettings.sampleCursor || 0,
+  sampleIdea: null,
+  sampleBatch: [],
   editing: false,
   undo: [],
   redo: [],
@@ -82,6 +95,21 @@ document.querySelector('#app').innerHTML = `
         </form>
 
         <div class="example-cloud" id="exampleCloud" aria-label="Example prompts"></div>
+
+        <section class="panel-block prompt-forge" aria-label="Infinite prompt samples">
+          <div class="panel-title">
+            <h2>∞ Prompt Forge</h2>
+            <span id="sampleCounter"></span>
+          </div>
+          <p id="sampleText"></p>
+          <small id="sampleSource"></small>
+          <div class="sample-batch" id="sampleBatch"></div>
+          <div class="mini-actions">
+            <button class="primary-button" id="useSampleButton" type="button">Use Sample</button>
+            <button class="secondary-button" id="newSampleButton" type="button">Next ∞</button>
+            <button class="secondary-button" id="randomSampleButton" type="button">Random</button>
+          </div>
+        </section>
 
         <section class="panel-block">
           <div class="panel-title">
@@ -179,6 +207,24 @@ document.querySelector('#app').innerHTML = `
       </div>
       <div class="variant-grid" id="variantGrid"></div>
     </section>
+
+    <section class="inspiration-section" id="masterpieceTrail" aria-label="Masterpiece trail">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">masterpiece trail</p>
+          <h2>受賞作・名作から辿る研究ノート</h2>
+        </div>
+        <div class="trail-nav">
+          <button class="secondary-button" id="prevTrail" type="button">Prev</button>
+          <button class="secondary-button" id="nextTrail" type="button">Next</button>
+          <button class="primary-button" id="randomTrail" type="button">Random</button>
+        </div>
+      </div>
+      <div class="trail-layout">
+        <article class="trail-feature" id="trailFeature"></article>
+        <div class="trail-list" id="trailList"></div>
+      </div>
+    </section>
   </main>
 
   <aside class="shelf-drawer" id="shelfDrawer" aria-label="Saved shelf" aria-hidden="true">
@@ -202,6 +248,8 @@ document.querySelector('#app').innerHTML = `
     </div>
     <p>日本語でも英語でもOK。猫、街、山、海、花、宇宙、ドラゴン、ハートなどは自動でモチーフ化されます。</p>
     <p>Craft を上げるほど、輪郭線・曲線・特徴点を優先した「手描きASCII」寄りになります。下げると画像処理っぽい粒状の表現になります。</p>
+    <p>∞ Prompt Forge は、受賞作や高品質テキストアートから抽出した構図レッスンをもとに、転載ではないオリジナルお題を無限に作ります。</p>
+    <p>Masterpiece Trail は、外部の受賞作・名作・アーカイブを順番またはランダムに辿るための研究カードです。作品本文は埋め込まず、技法ノートと出典リンクだけを扱います。</p>
     <p>完成した文字絵は直接編集でき、TXT / SVG / PNGとして保存できます。処理はブラウザ内で完結します。</p>
   </dialog>
 
@@ -228,6 +276,8 @@ function persistSettings() {
     options: state.options,
     palette: state.palette,
     zoom: state.zoom,
+    inspirationIndex: state.inspirationIndex,
+    sampleCursor: state.sampleCursor,
   }))
 }
 
@@ -271,16 +321,63 @@ function render() {
   $('#artFrame').style.setProperty('--zoom', state.zoom)
 
   renderExamples()
+  renderPromptForge()
   renderStyles()
   renderPalettes()
   renderArt()
   renderVariants()
   renderShelf()
+  renderTrail()
 }
 
 function renderExamples() {
   $('#exampleCloud').innerHTML = examples.map((example) => `
     <button type="button" data-example="${escapeHtml(example)}">${escapeHtml(example)}</button>
+  `).join('')
+}
+
+function renderPromptForge() {
+  if (!state.sampleIdea) state.sampleIdea = makeSamplePrompt(state.sampleCursor, currentTrailEntry())
+  if (!state.sampleBatch.length) state.sampleBatch = makeInfiniteSamples(3, state.sampleCursor + 23, currentTrailEntry())
+  $('#sampleCounter').textContent = `#${state.sampleCursor.toLocaleString()}`
+  $('#sampleText').textContent = state.sampleIdea.prompt
+  $('#sampleSource').textContent = `${state.sampleIdea.sourceTitle} / ${state.sampleIdea.sourceRank}`
+  $('#sampleBatch').innerHTML = state.sampleBatch.map((sample, index) => `
+    <button type="button" data-sample="${index}">
+      <b>${escapeHtml(sample.sourceTitle)}</b>
+      <span>${escapeHtml(sample.prompt)}</span>
+    </button>
+  `).join('')
+}
+
+function renderTrail() {
+  const entry = currentTrailEntry()
+  const studyPrompt = makeStudyPrompt(entry, state.sampleCursor)
+  $('#trailFeature').innerHTML = `
+    <div class="trail-kicker">
+      <span>${escapeHtml(entry.rank)}</span>
+      <span>${escapeHtml(entry.format)}</span>
+    </div>
+    <h3>${escapeHtml(entry.title)}</h3>
+    <p class="trail-collection">${escapeHtml(entry.collection)}</p>
+    <p>${escapeHtml(entry.lesson)}</p>
+    <div class="tag-row">
+      ${entry.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}
+    </div>
+    <blockquote>${escapeHtml(studyPrompt)}</blockquote>
+    <div class="mini-actions">
+      <button class="primary-button" id="studyTrailButton" type="button">Generate Study</button>
+      <button class="secondary-button" id="sampleTrailButton" type="button">3 Inspired Samples</button>
+      <a class="source-link" href="${escapeHtml(entry.sourceUrl)}" target="_blank" rel="noreferrer noopener">Open source ↗</a>
+    </div>
+    <small>作品本文は埋め込まず、出典リンクと技法ノートだけを扱います。</small>
+  `
+  $('#trailList').innerHTML = MASTERPIECE_TRAIL.map((item, index) => `
+    <button class="${index === trailIndex(state.inspirationIndex) ? 'active' : ''}" type="button" data-trail="${index}">
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <b>${escapeHtml(item.title)}</b>
+      <small>${escapeHtml(item.rank)} · ${escapeHtml(item.collection)}</small>
+    </button>
   `).join('')
 }
 
@@ -360,6 +457,65 @@ function makeTitle(prompt) {
   return `${MOTIF_LABELS[motif] || '未知の紋章'} / ${prompt.trim().slice(0, 32) || 'Untitled'}`
 }
 
+function currentTrailEntry() {
+  return getTrailEntry(state.inspirationIndex)
+}
+
+function setTrail(index, { refreshSample = true, announce = true } = {}) {
+  state.inspirationIndex = trailIndex(index)
+  if (refreshSample) {
+    state.sampleIdea = makeSamplePrompt(state.sampleCursor, currentTrailEntry())
+    state.sampleBatch = makeInfiniteSamples(3, state.sampleCursor + 23, currentTrailEntry())
+  }
+  persistSettings()
+  render()
+  if (announce) toast(`${currentTrailEntry().title} の研究カードへ移動しました。`)
+}
+
+function drawSample({ random = false, use = false } = {}) {
+  const step = random ? Math.floor(Math.random() * 900000) + Date.now() : state.sampleCursor + 1
+  state.sampleCursor = step
+  if (random && Math.random() > 0.45) state.inspirationIndex = randomTrailIndex(step, state.inspirationIndex)
+  state.sampleIdea = makeSamplePrompt(state.sampleCursor, currentTrailEntry())
+  state.sampleBatch = makeInfiniteSamples(3, state.sampleCursor + 23, currentTrailEntry())
+  persistSettings()
+  if (use) {
+    applySample(state.sampleIdea)
+  } else {
+    render()
+    toast(random ? 'ランダム研究お題を引きました。' : '次のお題サンプルを作りました。')
+  }
+}
+
+function applySample(sample) {
+  state.prompt = sample.prompt
+  state.options = {
+    ...state.options,
+    ...sample.options,
+  }
+  state.palette = sample.palette || state.palette
+  generate({ variants: true })
+  toast(`${sample.sourceTitle} から学ぶオリジナルお題を生成しました。`)
+}
+
+function applyTrailStudy() {
+  const entry = currentTrailEntry()
+  state.prompt = makeStudyPrompt(entry, state.sampleCursor)
+  state.options = {
+    ...state.options,
+    width: entry.width,
+    height: entry.height,
+    density: entry.density,
+    contrast: entry.contrast,
+    craft: entry.craft,
+    style: entry.style,
+    seedShift: (state.sampleCursor + trailIndex(state.inspirationIndex) * 313) % 10000,
+  }
+  state.palette = entry.palette || state.palette
+  generate({ variants: true })
+  toast(`${entry.title} の技法ノートから生成しました。`)
+}
+
 function pushUndo() {
   if (!state.result) return
   state.undo.push(state.result.art)
@@ -395,6 +551,12 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
 }
 
+function scrollHashTarget() {
+  if (!location.hash) return
+  const target = document.querySelector(location.hash)
+  if (target) requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
+}
+
 function bindEvents() {
   $('#promptForm').addEventListener('submit', (event) => {
     event.preventDefault()
@@ -412,9 +574,20 @@ function bindEvents() {
   })
 
   $('#randomPrompt').addEventListener('click', () => {
-    const current = examples.indexOf(state.prompt)
-    state.prompt = examples[(current + 1 + Math.floor(Math.random() * (examples.length - 1))) % examples.length]
-    generate({ variants: true })
+    drawSample({ random: true, use: true })
+  })
+
+  $('#useSampleButton').addEventListener('click', () => applySample(state.sampleIdea || makeSamplePrompt(state.sampleCursor, currentTrailEntry())))
+  $('#newSampleButton').addEventListener('click', () => drawSample())
+  $('#randomSampleButton').addEventListener('click', () => drawSample({ random: true }))
+  $('#sampleBatch').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-sample]')
+    if (!button) return
+    const sample = state.sampleBatch[Number(button.dataset.sample)]
+    if (sample) {
+      state.sampleIdea = sample
+      applySample(sample)
+    }
   })
 
   $('#exampleCloud').addEventListener('click', (event) => {
@@ -516,11 +689,38 @@ function bindEvents() {
     const button = event.target.closest('[data-variant]')
     if (!button) return
     state.result = state.variants[Number(button.dataset.variant)]
+    state.prompt = state.result.prompt || state.prompt
     state.status = 'Variant selected'
     state.editing = false
     render()
     toast('別案をキャンバスに移しました。')
   })
+
+  $('#masterpieceTrail').addEventListener('click', (event) => {
+    const trailButton = event.target.closest('[data-trail]')
+    if (trailButton) {
+      setTrail(Number(trailButton.dataset.trail))
+      return
+    }
+    if (event.target.closest('#studyTrailButton')) {
+      applyTrailStudy()
+      return
+    }
+    if (event.target.closest('#sampleTrailButton')) {
+      state.sampleBatch = makeInfiniteSamples(3, state.sampleCursor + 101, currentTrailEntry())
+      state.variants = state.sampleBatch.map((sample) => generateAscii(sample.prompt, {
+        ...state.options,
+        ...sample.options,
+      }))
+      state.sampleIdea = state.sampleBatch[0]
+      render()
+      toast('この研究カードから3つのサンプル案を並べました。')
+    }
+  })
+
+  $('#prevTrail').addEventListener('click', () => setTrail(state.inspirationIndex - 1))
+  $('#nextTrail').addEventListener('click', () => setTrail(state.inspirationIndex + 1))
+  $('#randomTrail').addEventListener('click', () => setTrail(randomTrailIndex(Date.now(), state.inspirationIndex)))
 
   $('#openShelf').addEventListener('click', () => {
     $('#shelfDrawer').classList.add('open')
@@ -596,3 +796,5 @@ async function convertImage(file) {
 
 bindEvents()
 generate({ variants: true })
+scrollHashTarget()
+window.addEventListener('hashchange', scrollHashTarget)
