@@ -1,16 +1,16 @@
 const CACHE_PREFIX = 'ascii-atelier-wilds-'
-const CACHE_NAME = `${CACHE_PREFIX}v3`
+const CACHE_NAME = `${CACHE_PREFIX}v4`
 const CORE_ASSETS = [
   './',
   './index.html',
-  './manifest.webmanifest',
-  './src/app.js',
+  './manifest.webmanifest?v=wilds-1',
+  './src/app.js?v=wilds-1',
   './src/game.js',
   './src/world.js',
   './src/generator.js',
   './src/inspirations.js',
   './src/export.js',
-  './src/styles.css',
+  './src/styles.css?v=wilds-1',
   './src/assets/ascii-wilds-icon.svg',
   './src/assets/ascii-wilds-icon-180.png',
   './src/assets/ascii-wilds-icon-192.png',
