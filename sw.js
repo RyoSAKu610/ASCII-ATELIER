@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ascii-atelier-wilds-'
-const CACHE_NAME = `${CACHE_PREFIX}v2`
+const CACHE_NAME = `${CACHE_PREFIX}v3`
 const CORE_ASSETS = [
   './',
   './index.html',

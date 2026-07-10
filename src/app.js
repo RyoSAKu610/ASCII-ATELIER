@@ -839,7 +839,7 @@ scrollHashTarget()
 window.addEventListener('hashchange', scrollHashTarget)
 
 if (new URLSearchParams(location.search).get('mode') === 'world') {
-  requestAnimationFrame(() => worldGame.open())
+  worldGame.open()
 }
 
 if ('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)) {
