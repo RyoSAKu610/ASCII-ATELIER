@@ -1,0 +1,32 @@
+{
+  "name": "ASCII ATELIER — ATELIER WILDS",
+  "short_name": "ASCII WILDS",
+  "description": "Generate beautiful ASCII art, then enter it as a playable glyph sandbox world.",
+  "start_url": "./?mode=world",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050713",
+  "theme_color": "#070917",
+  "categories": ["games", "entertainment", "graphics-design"],
+  "icons": [
+    {
+      "src": "./src/assets/ascii-wilds-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./src/assets/ascii-wilds-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./src/assets/ascii-wilds-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

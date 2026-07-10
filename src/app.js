@@ -1,5 +1,6 @@
 import { MOTIF_LABELS, STYLES, defaultOptions, detectMotif, generateAscii, imageToAscii } from './generator.js'
 import { downloadPng, downloadSvg, downloadText } from './export.js'
+import { createAsciiWorldGame } from './game.js'
 import {
   MASTERPIECE_TRAIL,
   getTrailEntry,
@@ -62,6 +63,7 @@ document.querySelector('#app').innerHTML = `
       <span><b>ASCII ATELIER</b><small>prompt to text-art studio</small></span>
     </a>
     <nav class="top-actions" aria-label="Quick actions">
+      <button class="primary-button play-world-button" id="openWorld" type="button"><span>@</span> Play World</button>
       <button class="ghost-button" id="randomPrompt" type="button">Surprise</button>
       <button class="ghost-button" id="openShelf" type="button">Shelf <span id="shelfCount">0</span></button>
       <button class="icon-button" id="openHelp" type="button" title="Help">?</button>
@@ -190,6 +192,7 @@ document.querySelector('#app').innerHTML = `
             <button class="icon-button" id="zoomIn" type="button">+</button>
           </div>
           <div class="export-actions">
+            <button class="secondary-button" id="worldFromArtButton" type="button">Enter World</button>
             <button class="secondary-button" id="copyButton" type="button">Copy</button>
             <button class="secondary-button" id="saveButton" type="button">Save</button>
             <button class="secondary-button" id="txtButton" type="button">TXT</button>
@@ -227,6 +230,8 @@ document.querySelector('#app').innerHTML = `
     </section>
   </main>
 
+  <section class="world-overlay" id="worldOverlay" aria-hidden="true" hidden></section>
+
   <aside class="shelf-drawer" id="shelfDrawer" aria-label="Saved shelf" aria-hidden="true">
     <div class="drawer-head">
       <div>
@@ -250,6 +255,7 @@ document.querySelector('#app').innerHTML = `
     <p>Craft を上げるほど、輪郭線・曲線・特徴点を優先した「手描きASCII」寄りになります。下げると画像処理っぽい粒状の表現になります。</p>
     <p>∞ Prompt Forge は、受賞作や高品質テキストアートから抽出した構図レッスンをもとに、転載ではないオリジナルお題を無限に作ります。</p>
     <p>Masterpiece Trail は、外部の受賞作・名作・アーカイブを順番またはランダムに辿るための研究カードです。作品本文は埋め込まず、技法ノートと出典リンクだけを扱います。</p>
+    <p>Play World では、現在のお題から生まれたASCII世界を @ で探索できます。文字を採掘・配置・クラフトし、Frame Scene でアトリエへ景色を持ち帰れます。</p>
     <p>完成した文字絵は直接編集でき、TXT / SVG / PNGとして保存できます。処理はブラウザ内で完結します。</p>
   </dialog>
 
@@ -257,6 +263,36 @@ document.querySelector('#app').innerHTML = `
 `
 
 const $ = (selector) => document.querySelector(selector)
+
+const worldGame = createAsciiWorldGame({
+  root: $('#worldOverlay'),
+  getSource: () => ({ prompt: state.prompt, motif: detectMotif(state.prompt) }),
+  onFrame: ({ art, width, height, title, prompt }) => {
+    state.prompt = prompt
+    state.options = {
+      ...state.options,
+      width: Math.max(32, Math.min(156, width)),
+      height: Math.max(14, Math.min(76, height)),
+      style: 'etch',
+      craft: 100,
+    }
+    state.result = {
+      prompt,
+      motif: 'abstract',
+      seed: 0,
+      style: 'etch',
+      width,
+      height,
+      art,
+      craftNotes: ['captured from ATELIER WILDS', 'player-built glyph structure', 'ready for manual editing and export'],
+    }
+    state.status = `World framed · ${title}`
+    state.editing = false
+    persistSettings()
+    render()
+  },
+  notify: toast,
+})
 
 function safeJson(value, fallback) {
   try {
@@ -558,6 +594,9 @@ function scrollHashTarget() {
 }
 
 function bindEvents() {
+  $('#openWorld').addEventListener('click', () => worldGame.open())
+  $('#worldFromArtButton').addEventListener('click', () => worldGame.open({ fromSource: true }))
+
   $('#promptForm').addEventListener('submit', (event) => {
     event.preventDefault()
     state.prompt = $('#promptInput').value.trim() || '静かな夜に光る小さな記号'
@@ -798,3 +837,11 @@ bindEvents()
 generate({ variants: true })
 scrollHashTarget()
 window.addEventListener('hashchange', scrollHashTarget)
+
+if (new URLSearchParams(location.search).get('mode') === 'world') {
+  requestAnimationFrame(() => worldGame.open())
+}
+
+if ('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}))
+}

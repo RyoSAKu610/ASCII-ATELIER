@@ -16,6 +16,30 @@ ASCII ATELIER is a local-first browser studio that turns a prompt or image into 
 - Edge-aware image-to-ASCII conversion in the browser
 - Local shelf using `localStorage`
 - Export to TXT, SVG, and PNG
+- **ATELIER WILDS**, a playable side-view ASCII sandbox generated from the current artwork prompt
+- Mobile-first touch controls, keyboard controls, day/night atmosphere, crafting, local world saves, and installable PWA support
+- Frame Scene workflow that sends a player-built world view back to the Atelier editor and exporters
+
+## ATELIER WILDS
+
+`Play World` opens a full-screen glyph sandbox where every character is both scenery and material. The player is `@`; terrain, trees, ores, water, lights, and ruins are generated deterministically from the current Atelier prompt and detected motif.
+
+Core loop:
+
+1. Explore a generated glyph biome.
+2. Mine visible characters such as soil `:`, stone `#`, wood `|`, coal `c`, and crystals `*`.
+3. Select a material from the hotbar and place it back into the world.
+4. Craft planks `=` and glyph torches `!`.
+5. Watch the world shift through dawn, day, dusk, and night.
+6. Use **Frame Scene** to return the visible world to the normal ASCII editor, shelf, TXT, SVG, and PNG tools.
+
+Controls:
+
+- Mobile: left / jump / right buttons, Mine / Place modes, hotbar, and direct world-cell tapping
+- Keyboard: `A` / `D` or arrow keys to move, `W` / `Space` to jump, `X` to mine, `C` to place, `1`–`6` to select materials, and `Escape` to pause
+- Touch controls use Pointer Events and support safe-area insets, portrait, and landscape layouts
+
+World progress is saved separately under `ascii-atelier-world-v1`. The app manifest and service worker allow supported mobile browsers to add ASCII ATELIER to the home screen and reopen the core app offline.
 
 ## Quality model
 

@@ -8,7 +8,7 @@
     "dev": "node scripts/server.mjs",
     "start": "node scripts/server.mjs",
     "test": "node --test",
-    "check": "node --check src/app.js && node --check src/generator.js && node --check src/export.js && node --check src/inspirations.js && node --test"
+    "check": "node --check src/app.js && node --check src/generator.js && node --check src/export.js && node --check src/inspirations.js && node --check src/world.js && node --check src/game.js && node --check sw.js && node --test"
   },
   "engines": {
     "node": ">=20"
