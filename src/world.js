@@ -21,17 +21,17 @@ export const TILE = Object.freeze({
 
 export const TILE_INFO = Object.freeze({
   [TILE.AIR]: { key: 'air', label: 'Air', glyph: ' ', color: '#09111b', solid: false, mineable: false },
-  [TILE.GRASS]: { key: 'grass', label: 'Grass', glyph: '"', color: '#8ff58b', solid: true, mineable: true, drop: 'soil' },
-  [TILE.SOIL]: { key: 'soil', label: 'Soil', glyph: ':', color: '#c88b5f', solid: true, mineable: true, drop: 'soil' },
-  [TILE.STONE]: { key: 'stone', label: 'Stone', glyph: '#', color: '#9aa6b7', solid: true, mineable: true, drop: 'stone' },
-  [TILE.COAL]: { key: 'coal', label: 'Coal', glyph: 'c', color: '#596273', solid: true, mineable: true, drop: 'coal' },
-  [TILE.CRYSTAL]: { key: 'crystal', label: 'Echo crystal', glyph: '*', color: '#77f8ff', solid: true, mineable: true, drop: 'crystal' },
-  [TILE.WOOD]: { key: 'wood', label: 'Wood', glyph: '|', color: '#db9f62', solid: true, mineable: true, drop: 'wood' },
-  [TILE.LEAVES]: { key: 'leaves', label: 'Leaves', glyph: '&', color: '#70dc83', solid: true, mineable: true, drop: 'leaves' },
+  [TILE.GRASS]: { key: 'grass', label: 'Grass', glyph: '"', color: '#8ff58b', solid: true, mineable: true, drop: 'soil', bonus: 1 },
+  [TILE.SOIL]: { key: 'soil', label: 'Soil', glyph: ':', color: '#c88b5f', solid: true, mineable: true, drop: 'soil', bonus: 1 },
+  [TILE.STONE]: { key: 'stone', label: 'Stone', glyph: '#', color: '#9aa6b7', solid: true, mineable: true, drop: 'stone', bonus: 1 },
+  [TILE.COAL]: { key: 'coal', label: 'Coal', glyph: 'c', color: '#596273', solid: true, mineable: true, drop: 'coal', bonus: 2 },
+  [TILE.CRYSTAL]: { key: 'crystal', label: 'Echo crystal', glyph: '*', color: '#77f8ff', solid: true, mineable: true, drop: 'crystal', bonus: 1 },
+  [TILE.WOOD]: { key: 'wood', label: 'Wood', glyph: '|', color: '#db9f62', solid: true, mineable: true, drop: 'wood', bonus: 2 },
+  [TILE.LEAVES]: { key: 'leaves', label: 'Leaves', glyph: '&', color: '#70dc83', solid: true, mineable: true, drop: 'leaves', bonus: 1 },
   [TILE.WATER]: { key: 'water', label: 'Water', glyph: '~', color: '#55b8e8', solid: false, mineable: false },
-  [TILE.TORCH]: { key: 'torch', label: 'Glyph torch', glyph: '!', color: '#ffd56a', solid: false, mineable: true, drop: 'torch', light: 8 },
-  [TILE.PLANK]: { key: 'plank', label: 'Plank', glyph: '=', color: '#e2b978', solid: true, mineable: true, drop: 'plank' },
-  [TILE.FLOWER]: { key: 'flower', label: 'Wild glyph', glyph: '+', color: '#ff91c8', solid: false, mineable: true, drop: 'flower' },
+  [TILE.TORCH]: { key: 'torch', label: 'Glyph torch', glyph: '!', color: '#ffd56a', solid: false, mineable: true, drop: 'torch', light: 8, bonus: 1 },
+  [TILE.PLANK]: { key: 'plank', label: 'Plank', glyph: '=', color: '#e2b978', solid: true, mineable: true, drop: 'plank', bonus: 1 },
+  [TILE.FLOWER]: { key: 'flower', label: 'Wild glyph', glyph: '+', color: '#ff91c8', solid: false, mineable: true, drop: 'flower', bonus: 1 },
   [TILE.BEDROCK]: { key: 'bedrock', label: 'Bedrock', glyph: '%', color: '#445064', solid: true, mineable: false },
   [TILE.SHRINE]: { key: 'shrine', label: 'Ancient terminal', glyph: 'Ω', color: '#b898ff', solid: true, mineable: false, light: 5 },
 })
@@ -136,7 +136,8 @@ export function mineTile(world, x, y, inventory = {}) {
   if (!info?.mineable) return { ok: false, reason: 'unbreakable', tile }
   if (!setTile(world, x, y, TILE.AIR)) return { ok: false, reason: 'outside', tile }
   const drop = info.drop
-  if (drop) inventory[drop] = (inventory[drop] || 0) + 1
+  const bonus = info.bonus || 1
+  if (drop) inventory[drop] = (inventory[drop] || 0) + bonus
   return { ok: true, tile, drop, count: drop ? inventory[drop] : 0 }
 }
 
@@ -182,7 +183,7 @@ export function createPlayer(world) {
 }
 
 export function defaultInventory() {
-  return { soil: 8, stone: 0, coal: 0, crystal: 0, wood: 4, leaves: 0, plank: 0, torch: 2, flower: 0 }
+  return { soil: 12, stone: 2, coal: 0, crystal: 0, wood: 4, leaves: 0, plank: 0, torch: 2, flower: 0 }
 }
 
 export function serializeWorldState({ world, player, inventory, selected = 'soil', mode = 'mine', time = 0, discoveries = [], stats = {} }) {

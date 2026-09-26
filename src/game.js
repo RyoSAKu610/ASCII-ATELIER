@@ -20,7 +20,15 @@ import {
 const STORAGE_KEY = 'ascii-atelier-world-v1'
 const HOLO_KEY = 'ascii-atelier-holo-v1'
 const DAY_SECONDS = 210
-const REACH = 5.4
+const REACH = 7.5
+const TAP_CORRECTION_RADIUS = 2
+const ACTION_COOLDOWN_MINE = 0.18
+const ACTION_COOLDOWN_PLACE = 0.28
+const COYOTE_TIME = 0.12
+const JUMP_BUFFER = 0.15
+const JUMP_VELOCITY = -11.5
+const JUMP_VELOCITY_WATER = -7
+const AUTO_LIFT_THRESHOLD = 3.5
 
 export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => {} }) {
   if (!root) throw new Error('ASCII world root is required.')
@@ -47,6 +55,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
           <button class="secondary-button" id="worldPause" type="button" aria-pressed="false">Pause</button>
           <button class="secondary-button" id="worldRemix" type="button">Remix</button>
           <button class="primary-button" id="worldFrame" type="button">Frame Scene</button>
+          <button class="secondary-button" id="worldSOS" type="button" aria-label="Emergency rescue to safe ground">SOS</button>
           <button class="icon-button" id="worldClose" type="button" aria-label="Close world">×</button>
         </div>
       </header>
@@ -104,7 +113,8 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
           <span><kbd>Space</kbd> jump</span>
           <span><kbd>X</kbd> mine</span>
           <span><kbd>C</kbd> place</span>
-          <span>Tap any nearby glyph to act</span>
+          <span>Tap/hold/drag glyphs to act</span>
+          <span>SOS: rescue</span>
           <b id="worldSaveState">Saved locally</b>
         </footer>
       </main>
@@ -141,6 +151,13 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   let placedCount = saved?.stats?.placedCount || 0
   let firstOpen = !saved
   let announcementTimer = 0
+  let coyoteTimer = 0
+  let jumpBufferTimer = 0
+  let lastGrounded = false
+  let targetFlash = 0
+  let audioCtx = null
+  let dragMining = false
+  let lastDragTarget = null
 
   function openWorld({ fromSource = false } = {}) {
     if (fromSource) {
@@ -165,8 +182,8 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     })
     if (firstOpen) {
       firstOpen = false
-      announce('Welcome to the living page. Move, jump, then tap a nearby glyph to mine it.')
-      notify('ATELIER WILDSへようこそ。文字の世界を歩いて掘れます。')
+      announce('Welcome! Move with A/D, jump with Space, tap glyphs to mine. Hold to drag-mine.')
+      notify('ATELIER WILDSへようこそ。A/Dで移動、Spaceでジャンプ、タップで採掘。長押しドラッグで連続採掘。')
     }
   }
 
@@ -229,6 +246,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     worldTime += delta
     actionCooldown = Math.max(0, actionCooldown - delta)
     uiCooldown = Math.max(0, uiCooldown - delta)
+    targetFlash = Math.max(0, targetFlash - delta)
     const move = Number(input.right) - Number(input.left)
     if (move) {
       player.vx += move * 28 * delta
@@ -241,18 +259,47 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     const inWater = tileAt(world, Math.floor(player.x), Math.floor(player.y)) === TILE.WATER
     const gravity = inWater ? 7 : 24
     player.vy = clamp(player.vy + gravity * delta, -12, inWater ? 4 : 14)
-    if (input.jumpQueued) {
-      if (player.grounded || inWater) {
-        player.vy = inWater ? -6 : -10.2
-        player.grounded = false
-        burst(player.x, player.y + 0.4, inWater ? '~' : '.', inWater ? '#64d8ff' : '#b6c5d8', 4)
-      }
-      input.jumpQueued = false
+
+    // Coyote time: allow jump shortly after leaving ground
+    const nowGrounded = player.grounded || inWater
+    if (nowGrounded) {
+      coyoteTimer = COYOTE_TIME
+    } else {
+      coyoteTimer = Math.max(0, coyoteTimer - delta)
     }
+
+    // Jump buffer: queue jump input slightly before landing
+    if (input.jumpQueued) {
+      jumpBufferTimer = JUMP_BUFFER
+      input.jumpQueued = false
+    } else {
+      jumpBufferTimer = Math.max(0, jumpBufferTimer - delta)
+    }
+
+    // Execute jump if buffered and coyote time available
+    if (jumpBufferTimer > 0 && coyoteTimer > 0) {
+      player.vy = inWater ? JUMP_VELOCITY_WATER : JUMP_VELOCITY
+      player.grounded = false
+      coyoteTimer = 0
+      jumpBufferTimer = 0
+      burst(player.x, player.y + 0.4, inWater ? '~' : '.', inWater ? '#64d8ff' : '#b6c5d8', 4)
+    }
+
+    lastGrounded = nowGrounded
 
     moveAxis('x', player.vx * delta)
     player.grounded = false
     moveAxis('y', player.vy * delta)
+
+    // Auto-lift: if player is buried (solid above and below) or fallen far below surface, lift to nearest air
+    if (isBuried(world, player.x, player.y) || player.y > world.height - AUTO_LIFT_THRESHOLD) {
+      const safeY = findSafeY(world, player.x, player.y)
+      if (safeY !== null) {
+        player.y = safeY
+        player.vy = 0
+        announce('You were lifted to safety.')
+      }
+    }
 
     if (input.keyboardAction) aimAhead()
     if (input.action && actionCooldown <= 0) {
@@ -275,6 +322,28 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     }
     const saveInterval = dirty ? 1200 : 5000
     if (performance.now() - lastSavedAt > saveInterval) saveNow()
+  }
+
+  function isBuried(world, x, y) {
+    const ix = Math.floor(x)
+    const iy = Math.floor(y)
+    const above = isSolid(world, ix, iy - 1)
+    const below = isSolid(world, ix, iy + 1)
+    const current = isSolid(world, ix, iy)
+    return (above && below) || current
+  }
+
+  function findSafeY(world, x, startY) {
+    const ix = Math.floor(x)
+    // Search upward for air with solid ground below
+    for (let y = Math.floor(startY); y >= 2; y -= 1) {
+      if (!isSolid(world, ix, y) && isSolid(world, ix, y + 1)) return y
+    }
+    // Fallback: find any air cell in column
+    for (let y = 2; y < world.height - 2; y += 1) {
+      if (!isSolid(world, ix, y) && isSolid(world, ix, y + 1)) return y
+    }
+    return null
   }
 
   function moveAxis(axis, amount) {
@@ -305,6 +374,10 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   }
 
   function performAction() {
+    // Tap correction: find nearest mineable/placeable within correction radius
+    const corrected = correctTarget(target.x, target.y)
+    if (corrected) target = corrected
+
     if (!withinReach(target.x, target.y)) {
       announce('That glyph is beyond your reach.')
       return false
@@ -314,13 +387,13 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
       result = mineTile(world, target.x, target.y, inventory)
       if (result.ok) {
         minedCount += 1
-        burst(target.x + 0.5, target.y + 0.5, TILE_INFO[result.tile].glyph, TILE_INFO[result.tile].color, 7)
+        triggerMineFeedback(target.x, target.y, result.tile)
         if (result.drop === 'crystal' && !discoveries.includes('echo-crystal')) {
           discoveries.push('echo-crystal')
           announce('Echo crystal found. The paper remembers your light.')
           notify('Echo crystalを発見しました。')
         } else {
-          announce(`${TILE_INFO[result.tile].label} became ${result.drop || 'air'}.`)
+          announce(`${TILE_INFO[result.tile].label} mined.`)
         }
       }
     } else {
@@ -352,6 +425,60 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     const x = Math.floor(player.x)
     const y = Math.floor(player.y)
     return [{ x, y }, { x, y: y - 1 }]
+  }
+
+  function correctTarget(tx, ty) {
+    // Only correct in mine mode - find nearest mineable tile within radius
+    if (mode !== 'mine') return null
+    let best = null
+    let bestDist = Infinity
+    for (let dy = -TAP_CORRECTION_RADIUS; dy <= TAP_CORRECTION_RADIUS; dy += 1) {
+      for (let dx = -TAP_CORRECTION_RADIUS; dx <= TAP_CORRECTION_RADIUS; dx += 1) {
+        const x = tx + dx
+        const y = ty + dy
+        const tile = tileAt(world, x, y)
+        const info = TILE_INFO[tile]
+        if (info?.mineable && withinReach(x, y)) {
+          const dist = Math.hypot(dx, dy)
+          if (dist < bestDist) {
+            bestDist = dist
+            best = { x, y }
+          }
+        }
+      }
+    }
+    return best
+  }
+
+  function triggerMineFeedback(x, y, tile) {
+    const info = TILE_INFO[tile]
+    burst(x + 0.5, y + 0.5, info.glyph, info.color, 7)
+    // Target flash
+    targetFlash = 0.18
+    // Vibration
+    try {
+      if (navigator.vibrate) navigator.vibrate(40)
+    } catch { /* ignore */ }
+    // WebAudio blip
+    playBlip()
+  }
+
+  function playBlip() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      if (audioCtx.state === 'suspended') audioCtx.resume()
+      const now = audioCtx.currentTime
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(520, now)
+      osc.frequency.exponentialRampToValueAtTime(260, now + 0.08)
+      gain.gain.setValueAtTime(0.12, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+      osc.connect(gain).connect(audioCtx.destination)
+      osc.start(now)
+      osc.stop(now + 0.12)
+    } catch { /* ignore */ }
   }
 
   function withinReach(x, y) {
@@ -433,6 +560,13 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
       context.setLineDash([3 * dpr, 3 * dpr])
       context.strokeRect(targetCol * view.cellW * dpr + dpr, targetRow * view.cellH * dpr + dpr, view.cellW * dpr - 2 * dpr, view.cellH * dpr - 2 * dpr)
       context.setLineDash([])
+      // Target flash effect on successful mine
+      if (targetFlash > 0) {
+        context.globalAlpha = clamp(targetFlash * 3, 0, 1)
+        context.fillStyle = biome.accent
+        context.fillRect(targetCol * view.cellW * dpr, targetRow * view.cellH * dpr, view.cellW * dpr, view.cellH * dpr)
+        context.globalAlpha = 1
+      }
     }
   }
 
@@ -490,6 +624,8 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     $('#worldMineMode').setAttribute('aria-pressed', String(mode === 'mine'))
     $('#worldPlaceMode').setAttribute('aria-pressed', String(mode === 'place'))
     $('#worldAction').innerHTML = mode === 'mine' ? '<span>⛏</span><b>MINE</b>' : '<span>▣</span><b>PLACE</b>'
+    $('#worldMineMode').title = mode === 'mine' ? 'Mine mode (X)' : 'Switch to Mine (X)'
+    $('#worldPlaceMode').title = mode === 'place' ? 'Place mode (C)' : 'Switch to Place (C)'
     if (persist) markDirty()
     renderTarget()
   }
@@ -537,20 +673,21 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   }
 
   function objectiveText() {
-    if (minedCount === 0) return 'Mine one glyph from the living paper.'
-    if ((inventory.wood || 0) < 5) return 'Find a | tree and gather 5 wood.'
-    if ((inventory.stone || 0) < 4) return 'Descend into # and collect 4 stone.'
-    if ((inventory.torch || 0) < 3) return 'Craft ! glyph torches for the coming night.'
-    if (!discoveries.includes('echo-crystal')) return 'Follow * below the surface. Find an Echo crystal.'
-    if (placedCount < 5) return 'Write a shelter: place 5 glyphs of your own.'
-    return 'Frame this scene, or keep writing the world.'
+    if (minedCount === 0) return 'Tap a glyph to mine it.'
+    if ((inventory.wood || 0) < 5) return 'Gather 5 wood from | trees.'
+    if ((inventory.stone || 0) < 4) return 'Collect 4 stone from #.'
+    if ((inventory.torch || 0) < 3) return 'Craft 3 torches (!) for night.'
+    if (!discoveries.includes('echo-crystal')) return 'Find * Echo crystal underground.'
+    if (placedCount < 5) return 'Place 5 glyphs to build shelter.'
+    return 'Frame this scene or keep writing.'
   }
 
   function renderTarget() {
     const tile = tileAt(world, target.x, target.y)
     const info = TILE_INFO[tile]
-    const reach = withinReach(target.x, target.y) ? 'within reach' : 'too far'
-    $('#worldTarget').textContent = `${mode === 'mine' ? 'Mine' : `Place ${selected}`} · ${info.label} [${target.x}, ${target.y}] · ${reach}`
+    const reach = withinReach(target.x, target.y) ? '✓' : '✗'
+    const buried = isBuried(world, player.x, player.y) ? ' · BURIED' : ''
+    $('#worldTarget').textContent = `${mode === 'mine' ? '⛏ Mine' : `▣ Place ${selected}`} · ${info.label} ${reach}${buried}`
   }
 
   function resizeCanvas() {
@@ -600,7 +737,30 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   function handleCanvasPointer(event) {
     if (paused) return
     setTargetFromPointer(event)
-    performAction()
+    if (event.type === 'pointerdown') {
+      dragMining = true
+      lastDragTarget = { x: target.x, y: target.y }
+      performAction()
+      actionCooldown = mode === 'mine' ? ACTION_COOLDOWN_MINE : ACTION_COOLDOWN_PLACE
+    }
+  }
+
+  function handleCanvasPointerMove(event) {
+    if (paused || !dragMining) return
+    setTargetFromPointer(event)
+    // Only act if target changed (drag to new cell)
+    if (target.x !== lastDragTarget.x || target.y !== lastDragTarget.y) {
+      lastDragTarget = { x: target.x, y: target.y }
+      if (actionCooldown <= 0) {
+        performAction()
+        actionCooldown = mode === 'mine' ? ACTION_COOLDOWN_MINE : ACTION_COOLDOWN_PLACE
+      }
+    }
+  }
+
+  function handleCanvasPointerUp(event) {
+    dragMining = false
+    lastDragTarget = null
   }
 
   function handleKeyDown(event) {
@@ -616,7 +776,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
       aimAhead()
       if (!event.repeat) {
         performAction()
-        actionCooldown = 0.22
+        actionCooldown = ACTION_COOLDOWN_MINE
       }
     }
     if (event.key === 'c') {
@@ -626,7 +786,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
       aimAhead()
       if (!event.repeat) {
         performAction()
-        actionCooldown = 0.32
+        actionCooldown = ACTION_COOLDOWN_PLACE
       }
     }
     if (/^[1-6]$/.test(event.key)) selectItem(PLACEABLES[Number(event.key) - 1]?.item)
@@ -739,6 +899,23 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     syncWorldHolo()
   }
 
+  function triggerSOS() {
+    const safeY = findSafeY(world, player.x, player.y)
+    if (safeY !== null) {
+      player.y = safeY
+      player.vy = 0
+      player.vx = 0
+      announce('Emergency rescue! Returned to safe ground.')
+    } else {
+      // Ultimate fallback: respawn at world spawn
+      player.x = world.spawn.x
+      player.y = world.spawn.y
+      player.vx = 0
+      player.vy = 0
+      announce('Respawned at world entrance.')
+    }
+  }
+
   function frameScene() {
     const frame = captureVisibleAscii()
     onFrame?.({
@@ -824,6 +1001,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     if (window.confirm('新しい地形へリミックスしますか？ 現在の世界は置き換わります。')) startNewWorld(safeSource(getSource), true)
   })
   $('#worldFrame').addEventListener('click', frameScene)
+  $('#worldSOS').addEventListener('click', triggerSOS)
   $('#worldMineMode').addEventListener('click', () => setMode('mine'))
   $('#worldPlaceMode').addEventListener('click', () => setMode('place'))
   $('#worldCraftToggle').addEventListener('click', () => setCraftOpen(!$('.world-craft').classList.contains('open')))
@@ -834,13 +1012,16 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   })
   $('.world-craft').addEventListener('click', handleCraft)
   canvas.addEventListener('pointerdown', handleCanvasPointer)
+  canvas.addEventListener('pointermove', handleCanvasPointerMove)
+  canvas.addEventListener('pointerup', handleCanvasPointerUp)
+  canvas.addEventListener('pointercancel', handleCanvasPointerUp)
   canvas.addEventListener('contextmenu', (event) => event.preventDefault())
   bindHold($('#worldLeft'), 'left')
   bindHold($('#worldRight'), 'right')
   bindHold($('#worldAction'), 'action', {
     onPress: () => {
       performAction()
-      actionCooldown = mode === 'mine' ? 0.22 : 0.32
+      actionCooldown = mode === 'mine' ? ACTION_COOLDOWN_MINE : ACTION_COOLDOWN_PLACE
     },
   })
   bindPulse($('#worldJump'), () => { input.jumpQueued = true })
