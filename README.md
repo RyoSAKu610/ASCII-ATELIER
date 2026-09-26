@@ -2,6 +2,21 @@
 
 ASCII ATELIER is a local-first browser studio that turns a prompt or image into polished ASCII art. It is designed to feel like a tiny creative atelier: generate, tune, edit, save, and export without any backend or API key.
 
+## 初めての方へ
+
+公開版はこちらです:
+
+- アトリエTOP: https://ryosaku610.github.io/ASCII-ATELIER/
+- ATELIER WILDS 直行: https://ryosaku610.github.io/ASCII-ATELIER/?mode=world
+
+3ステップで遊べます:
+
+1. 作る: TOPでお題を入力して Generate（または画像から変換）。
+2. 遊ぶ: 「▶ Worldで遊ぶ」で ATELIER WILDS へ。スマホは左右・ジャンプ・MINEボタン、PCは `A` / `D`・`Space`・`X` キー。
+3. 持ち帰る: WILDS の Frame Scene で景色をアトリエへ送り、TXT / SVG / PNG で書き出し。「◀ Atelierに戻る」でいつでも TOP へ戻れます。
+
+スマホは縦画面のまま親指操作できます。PWA対応なので、スマホのブラウザメニューからホーム画面に追加するとフルスクリーンで起動できます（`?mode=world` 始動にも対応）。
+
 ## Features
 
 - Prompt-to-ASCII generation with Japanese and English motif detection

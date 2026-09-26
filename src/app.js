@@ -63,9 +63,10 @@ document.querySelector('#app').innerHTML = `
       <span><b>ASCII ATELIER</b><small>prompt to text-art studio</small></span>
     </a>
     <nav class="top-actions" aria-label="Quick actions">
-      <button class="primary-button play-world-button" id="openWorld" type="button"><span>@</span> Play World</button>
+      <button class="primary-button play-world-button" id="openWorld" type="button">▶ Worldで遊ぶ</button>
       <button class="ghost-button" id="randomPrompt" type="button">Surprise</button>
       <button class="ghost-button" id="openShelf" type="button">Shelf <span id="shelfCount">0</span></button>
+      <button class="ghost-button" id="holoToggle" type="button" aria-pressed="true">Holo ON</button>
       <button class="icon-button" id="openHelp" type="button" title="Help">?</button>
     </nav>
   </header>
@@ -593,6 +594,30 @@ function scrollHashTarget() {
   if (target) requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
 }
 
+const HOLO_KEY = 'ascii-atelier-holo-v1'
+
+function readHolo() {
+  try {
+    const saved = localStorage.getItem(HOLO_KEY)
+    if (saved === 'on' || saved === 'off') return saved
+  } catch { /* private mode: fall through to default */ }
+  return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : 'on'
+}
+
+function applyHolo(value, { persist = true } = {}) {
+  const next = value === 'off' ? 'off' : 'on'
+  document.body.dataset.holo = next
+  if (persist) {
+    try { localStorage.setItem(HOLO_KEY, next) } catch { /* ignore */ }
+  }
+  const button = $('#holoToggle')
+  if (button) {
+    button.textContent = next === 'on' ? 'Holo ON' : 'Holo OFF'
+    button.setAttribute('aria-pressed', String(next === 'on'))
+  }
+  window.dispatchEvent(new CustomEvent('ascii-holo-change', { detail: next }))
+}
+
 function bindEvents() {
   $('#openWorld').addEventListener('click', () => worldGame.open())
   $('#worldFromArtButton').addEventListener('click', () => worldGame.open({ fromSource: true }))
@@ -799,6 +824,11 @@ function bindEvents() {
   $('#openHelp').addEventListener('click', () => $('#helpDialog').showModal())
   $('#closeHelp').addEventListener('click', () => $('#helpDialog').close())
 
+  $('#holoToggle').addEventListener('click', () => {
+    applyHolo(document.body.dataset.holo === 'on' ? 'off' : 'on')
+  })
+  window.addEventListener('ascii-holo-change', (event) => applyHolo(event.detail, { persist: false }))
+
   const dropZone = $('#dropZone')
   const imageInput = $('#imageInput')
   dropZone.addEventListener('click', () => imageInput.click())
@@ -834,6 +864,7 @@ async function convertImage(file) {
 }
 
 bindEvents()
+applyHolo(readHolo(), { persist: false })
 generate({ variants: true })
 scrollHashTarget()
 window.addEventListener('hashchange', scrollHashTarget)

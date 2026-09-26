@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ASCII WILDS" />
-    <meta name="description" content="ASCII ATELIERは、美しいASCIIアートを生成し、その文字世界を採掘・建築・探索して遊べるスマホ対応アトリエです。" />
+    <meta name="description" content="ブラウザで動くASCIIアート工房。プロンプト生成・画像変換で文字絵を作り、2DサンドボックスATELIER WILDSで遊べるPWA対応アプリです。" />
     <link rel="manifest" href="./manifest.webmanifest?v=wilds-1" />
     <link rel="apple-touch-icon" sizes="180x180" href="./src/assets/ascii-wilds-icon-180.png" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23090b18%22/><text x=%226%22 y=%2221%22 font-family=%22monospace%22 font-size=%2214%22 fill=%22%236cf6ff%22>Aa</text></svg>" />
@@ -15,6 +15,11 @@
     <title>ASCII ATELIER — Create and Play Text Worlds</title>
   </head>
   <body>
+    <div class="sibyl-bg" aria-hidden="true">
+      <div class="sibyl-rings"><i></i><i></i><i></i></div>
+      <div class="sibyl-wave"></div>
+      <div class="sibyl-scan"></div>
+    </div>
     <div id="app"></div>
     <script type="module" src="./src/app.js?v=wilds-1"></script>
   </body>

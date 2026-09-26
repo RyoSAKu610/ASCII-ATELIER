@@ -18,6 +18,7 @@ import {
 } from './world.js'
 
 const STORAGE_KEY = 'ascii-atelier-world-v1'
+const HOLO_KEY = 'ascii-atelier-holo-v1'
 const DAY_SECONDS = 210
 const REACH = 5.4
 
@@ -26,6 +27,11 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
 
   root.innerHTML = `
     <div class="world-app" role="application" aria-label="ATELIER WILDS ASCII sandbox">
+      <div class="sibyl-bg sibyl-bg--world" aria-hidden="true">
+        <div class="sibyl-rings"><i></i><i></i><i></i></div>
+        <div class="sibyl-wave"></div>
+        <div class="sibyl-scan"></div>
+      </div>
       <header class="world-header">
         <div class="world-brand">
           <span class="world-brand-mark">@</span>
@@ -37,6 +43,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
           <span id="worldCoords">x 0 · y 0</span>
         </div>
         <div class="world-header-actions">
+          <button class="secondary-button" id="worldHolo" type="button" aria-pressed="true">Holo</button>
           <button class="secondary-button" id="worldPause" type="button" aria-pressed="false">Pause</button>
           <button class="secondary-button" id="worldRemix" type="button">Remix</button>
           <button class="primary-button" id="worldFrame" type="button">Frame Scene</button>
@@ -87,6 +94,10 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
           </div>
           <button class="world-action-button" id="worldAction" type="button"><span>⛏</span><b>MINE</b></button>
         </section>
+
+        <div class="world-back-bar">
+          <button class="secondary-button" id="worldBack" type="button">◀ Atelierに戻る</button>
+        </div>
 
         <footer class="world-help">
           <span><kbd>A</kbd><kbd>D</kbd> move</span>
@@ -496,6 +507,7 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     $('#worldBiome').textContent = `${BIOMES[world.biome].label} · ${world.name.split(' ').at(-1)}`
     renderHotbar()
     setMode(mode, { persist: false })
+    syncWorldHolo()
     renderStatus()
   }
 
@@ -709,6 +721,24 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
     $('#worldCraftToggle').setAttribute('aria-expanded', String(expanded))
   }
 
+  function worldHoloState() {
+    return document.body.dataset.holo === 'off' ? 'off' : 'on'
+  }
+
+  function syncWorldHolo() {
+    const on = worldHoloState() === 'on'
+    $('#worldHolo').setAttribute('aria-pressed', String(on))
+    $('#worldHolo').textContent = on ? 'Holo' : 'Holo OFF'
+  }
+
+  function toggleWorldHolo() {
+    const next = worldHoloState() === 'on' ? 'off' : 'on'
+    document.body.dataset.holo = next
+    try { localStorage.setItem(HOLO_KEY, next) } catch { /* ignore */ }
+    window.dispatchEvent(new CustomEvent('ascii-holo-change', { detail: next }))
+    syncWorldHolo()
+  }
+
   function frameScene() {
     const frame = captureVisibleAscii()
     onFrame?.({
@@ -786,7 +816,10 @@ export function createAsciiWorldGame({ root, getSource, onFrame, notify = () => 
   }
 
   $('#worldClose').addEventListener('click', closeWorld)
+  $('#worldBack').addEventListener('click', closeWorld)
   $('#worldPause').addEventListener('click', togglePause)
+  $('#worldHolo').addEventListener('click', toggleWorldHolo)
+  window.addEventListener('ascii-holo-change', syncWorldHolo)
   $('#worldRemix').addEventListener('click', () => {
     if (window.confirm('新しい地形へリミックスしますか？ 現在の世界は置き換わります。')) startNewWorld(safeSource(getSource), true)
   })

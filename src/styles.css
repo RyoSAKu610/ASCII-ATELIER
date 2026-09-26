@@ -676,8 +676,27 @@ dialog::backdrop { background: rgba(0,0,0,.58); backdrop-filter: blur(5px); }
   gap: 8px;
   display: inline-flex;
   align-items: center;
+  font-weight: 800;
+  box-shadow: 0 0 24px rgba(108, 246, 255, .35);
 }
 .play-world-button span { font: 900 16px var(--mono); }
+
+/* One-tap return from WILDS to the Atelier TOP.
+   Lives in the bottom grid row so it stays in thumb reach on portrait phones. */
+.world-back-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  padding: 2px;
+}
+#worldBack {
+  min-height: 52px;
+  padding-inline: 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
 
 html.world-open, body.world-open {
   overflow: hidden;
@@ -1125,6 +1144,8 @@ body.world-open .toast { bottom: calc(106px + env(safe-area-inset-bottom)); }
   }
   .world-craft > button span { display: block; margin-top: 3px; }
   .world-touch { grid-row: 3; min-height: 68px; }
+  .world-back-bar { grid-row: 4; }
+  #worldBack { flex: 1; min-height: 56px; }
   .world-move-controls { grid-template-columns: repeat(3, minmax(58px, 74px)); }
   .world-touch button { min-height: 64px; border-radius: 18px; }
   .world-action-button { width: min(156px, 34vw); }
@@ -1213,6 +1234,110 @@ body[data-palette='paper'] {
   .style-grid { grid-template-columns: 1fr; }
   .art-frame { min-height: 420px; max-height: 60vh; }
   pre, #asciiEditor { padding: 18px; font-size: calc(8px * var(--zoom)); }
+}
+
+/* ===== Sibyl holographic background (decorative layer only) ===== */
+/* Fixed behind all UI (#app z:1, topbar z:40, drawer z:60, toast z:80, world z:120).
+   pointer-events:none + low opacity keep text readable and taps untouched. */
+.sibyl-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+#app { position: relative; z-index: 1; }
+body[data-holo='off'] .sibyl-bg { display: none; }
+
+.sibyl-rings {
+  position: absolute;
+  left: 50%;
+  top: -360px;
+  width: 700px;
+  height: 700px;
+  transform: translateX(-50%);
+  opacity: .5;
+  animation: sibyl-pulse 7s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+.sibyl-rings i { position: absolute; border-radius: 50%; }
+.sibyl-rings i:nth-child(1) {
+  inset: 0;
+  background: repeating-conic-gradient(rgba(108, 246, 255, .4) 0 .55deg, transparent .55deg 6deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 79%, #000 79.5%);
+  mask: radial-gradient(closest-side, transparent 79%, #000 79.5%);
+  animation: sibyl-spin 70s linear infinite;
+}
+.sibyl-rings i:nth-child(2) {
+  inset: 11%;
+  border: 1px dashed rgba(120, 255, 191, .32);
+  box-shadow: 0 0 44px rgba(108, 246, 255, .1), inset 0 0 44px rgba(108, 246, 255, .07);
+  animation: sibyl-spin-rev 50s linear infinite;
+}
+.sibyl-rings i:nth-child(3) {
+  inset: 24%;
+  border: 1px solid rgba(108, 246, 255, .22);
+  box-shadow: 0 0 30px rgba(108, 246, 255, .12);
+  animation: sibyl-pulse 5s ease-in-out infinite;
+}
+
+.sibyl-wave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 130px;
+  opacity: .3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='120' viewBox='0 0 600 120'%3E%3Cpath d='M0 60 Q 75 18 150 60 T 300 60 T 450 60 T 600 60' fill='none' stroke='%236cf6ff' stroke-opacity='.55' stroke-width='1.5'/%3E%3Cpath d='M0 84 Q 75 52 150 84 T 300 84 T 450 84 T 600 84' fill='none' stroke='%2378ffbf' stroke-opacity='.4' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 600px 120px;
+  animation: sibyl-drift 16s linear infinite;
+  will-change: background-position;
+}
+
+.sibyl-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 140px;
+  background: linear-gradient(transparent, rgba(108, 246, 255, .07), transparent);
+  animation: sibyl-scan 9s linear infinite;
+  will-change: transform;
+}
+
+@keyframes sibyl-spin { to { transform: rotate(360deg); } }
+@keyframes sibyl-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes sibyl-pulse {
+  0%, 100% { opacity: .34; }
+  50% { opacity: .6; }
+}
+@keyframes sibyl-drift {
+  from { background-position-x: 0; }
+  to { background-position-x: -600px; }
+}
+@keyframes sibyl-scan {
+  from { transform: translateY(-30vh); }
+  to { transform: translateY(130vh); }
+}
+
+/* World overlay reuses the same layer, absolutely positioned inside .world-app. */
+.world-app { position: relative; }
+.sibyl-bg--world { position: absolute; z-index: 0; }
+.world-header, .world-main { position: relative; z-index: 1; }
+.sibyl-bg--world .sibyl-rings {
+  top: -300px;
+  width: 560px;
+  height: 560px;
+  opacity: .34;
+}
+.sibyl-bg--world .sibyl-wave { opacity: .2; height: 100px; }
+
+@media (max-width: 760px) {
+  .sibyl-rings { top: -300px; width: 560px; height: 560px; opacity: .4; }
+  .sibyl-wave { height: 96px; opacity: .24; }
+  .sibyl-scan { animation-duration: 11s; }
 }
 
 @media (prefers-reduced-motion: reduce) {
