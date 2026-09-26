@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ASCII ATELIER — 2min PV (8 scenes × 15s)</title>
+<meta name="description" content="ASCII ATELIER / ATELIER WILDS の約2分アニメPV。HTMLタイムライン型・自動再生120秒。" />
+<style>
+:root{
+  --bg:#090b18; --ink:#eaffff; --accent:#6cf6ff; --glow:#78ffbf;
+  --violet:#b5a7ff; --amber:#ffbe55; --pink:#ff8fcb;
+  --panel:rgba(10,16,38,.78); --line:rgba(108,246,255,.28);
+  --total:120; /* 総尺(秒)。JSのTOTALと一致させる */
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;}
+body{min-height:100svh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden}
+/* ---- シビュラ風背景 ---- */
+.sibyl{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.sibyl .ring{position:absolute;left:50%;top:46%;border:1px solid rgba(108,246,255,.35);
+  border-radius:50%;transform:translate(-50%,-50%);animation:ring 9s ease-in-out infinite}
+.sibyl .ring:nth-child(1){width:min(88vmin,640px);height:min(88vmin,640px)}
+.sibyl .ring:nth-child(2){width:min(66vmin,480px);height:min(66vmin,480px);animation-delay:-3s;opacity:.7}
+.sibyl .ring:nth-child(3){width:min(44vmin,320px);height:min(44vmin,320px);animation-delay:-6s;opacity:.5}
+@keyframes ring{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5}
+  50%{transform:translate(-50%,-50%) scale(1.06);opacity:.9}}
+.sibyl .wave{position:absolute;left:-10%;right:-10%;height:22vmin;bottom:6%;
+  background:repeating-linear-gradient(180deg,transparent 0 10px,rgba(120,255,191,.10) 10px 11px);
+  -webkit-mask-image:radial-gradient(60% 130% at 50% 100%,#000 30%,transparent 75%);
+  mask-image:radial-gradient(60% 130% at 50% 100%,#000 30%,transparent 75%);
+  animation:wave 7s linear infinite}
+.sibyl .wave.w2{bottom:12%;opacity:.6;animation-duration:11s;animation-direction:reverse}
+@keyframes wave{from{transform:translateX(-2%)}to{transform:translateX(2%)}}
+.sibyl .scan{position:absolute;left:0;right:0;top:-20%;height:18%;
+  background:linear-gradient(180deg,transparent,rgba(108,246,255,.08),transparent);
+  animation:scan 8s linear infinite}
+@keyframes scan{to{top:120%}}
+/* ---- レイアウト ---- */
+.stage{position:relative;z-index:1;width:min(960px,94vw);margin:0 auto;padding:18px 0 28px;
+  display:flex;flex-direction:column;gap:12px;min-height:100svh}
+.pv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{font-size:12px;letter-spacing:.14em;border:1px solid var(--line);border-radius:999px;
+  padding:4px 12px;color:var(--accent)}
+.pv-title{font-size:clamp(18px,3.4vw,26px);font-weight:700;margin:0}
+.pv-sub{font-size:12px;opacity:.75}
+.clock{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px;opacity:.9;
+  border:1px solid var(--line);padding:4px 10px;border-radius:8px}
+.progress{height:8px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden}
+.progress>i{display:block;height:100%;width:0%;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),var(--glow),var(--violet));transition:width .2s linear}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dots button{border:1px solid var(--line);background:transparent;color:var(--ink);
+  font-size:11px;border-radius:999px;padding:3px 10px;cursor:pointer}
+.dots button[aria-current="true"]{background:var(--accent);color:#04222a;border-color:var(--accent);font-weight:700}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.controls button{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:10px;padding:8px 14px;cursor:pointer;font-size:14px}
+.controls button.primary{background:var(--accent);color:#04222a;font-weight:700;border-color:var(--accent)}
+/* ---- シーン ---- */
+.viewport{position:relative;border:1px solid var(--line);border-radius:18px;background:var(--panel);
+  min-height:min(62svh,560px);overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.scene{position:absolute;inset:0;padding:clamp(16px,3.5vw,34px);display:flex;flex-direction:column;gap:12px;
+  opacity:0;transform:translateX(48px) scale(.985);transition:opacity .7s ease,transform .7s ease;
+  pointer-events:none}
+.scene.active{opacity:1;transform:none;pointer-events:auto}
+.scene.leave-left{transform:translateX(-48px) scale(.985)}
+.kicker{font-size:12px;letter-spacing:.2em;color:var(--accent)}
+.scene h2{margin:0;font-size:clamp(20px,4.4vw,34px);line-height:1.25}
+.scene h2 small{display:block;font-size:.55em;opacity:.75;font-weight:400}
+.lead{margin:0;font-size:clamp(13px,2.6vw,16px);line-height:1.9;opacity:.92}
+.panel{border:1px solid var(--line);border-radius:14px;background:rgba(4,8,24,.66);
+  padding:12px 14px;font-size:clamp(12px,2.4vw,14px);line-height:1.8}
+.mono{font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.ascii{white-space:pre;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:clamp(9px,2.1vw,13.5px);line-height:1.35;color:var(--glow);
+  text-shadow:0 0 12px rgba(120,255,191,.35)}
+.typing{border-right:.6em solid var(--accent);animation:caret .8s steps(1) infinite}
+@keyframes caret{50%{border-color:transparent}}
+.grid6{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid6 figure{margin:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:rgba(4,8,24,.6)}
+.grid6 figcaption{font-size:11px;opacity:.85;margin-bottom:4px}
+.grid6 pre{margin:0;font-size:11px;line-height:1.3;white-space:pre;color:var(--ink)}
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:rgba(108,246,255,.08)}
+.arrow{color:var(--accent);font-weight:700}
+.mockbar{display:flex;gap:6px;align-items:center;font-size:12px;opacity:.9}
+.mockbar .btn{border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+.mockbar .btn.hot{background:var(--amber);color:#2a1500;border-color:var(--amber);font-weight:700}
+.daynight{height:64px;border-radius:12px;border:1px solid var(--line);
+  background:linear-gradient(90deg,#8fd8ff 0%,#ffd9a0 28%,#ff9d6b 45%,#141b4d 65%,#050713 100%);
+  position:relative;overflow:hidden}
+.daynight::after{content:"";position:absolute;top:8px;width:26px;height:26px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#fff,#ffd76b 60%,transparent 72%);
+  animation:sun 15s linear infinite;box-shadow:0 0 18px rgba(255,215,107,.8)}
+@keyframes sun{from{left:2%}to{left:92%}}
+.mine-flash{animation:flash 1.2s ease-in-out infinite}
+@keyframes flash{0%,100%{color:var(--glow)}50%{color:#fff;background:rgba(255,190,85,.25)}}
+.url{font-size:clamp(12px,2.6vw,15px);word-break:break-all;color:var(--accent)}
+.foot{font-size:12px;opacity:.75;line-height:1.9}
+.foot code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px}
+.scene-num{position:absolute;right:14px;bottom:10px;font-size:12px;opacity:.6}
+/* スマホ縦でも破綻しない */
+@media (max-width:560px){
+  .grid6{grid-template-columns:repeat(2,1fr)}
+  .viewport{min-height:64svh}
+  .ascii{font-size:10px}
+}
+@media (prefers-reduced-motion:reduce){
+  .sibyl *,.daynight::after,.typing{animation:none!important}
+  .scene{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="sibyl" aria-hidden="true"><i class="ring"></i><i class="ring"></i><i class="ring"></i><div class="wave"></div><div class="wave w2"></div><div class="scan"></div></div>
+<div class="stage">
+  <div class="pv-head">
+    <span class="badge">AUTO PV · 120s · 8 SCENES</span>
+    <h1 class="pv-title">ASCII ATELIER — 2min PV</h1>
+    <span class="clock mono" id="clock">00:00 / 02:00 · SCENE 1/8</span>
+  </div>
+  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  <div class="dots" id="dots" role="tablist" aria-label="シーン選択"></div>
+  <div class="viewport" id="viewport" aria-live="polite">
+
+    <section class="scene" data-scene="0" data-start="0" data-end="15">
+      <div class="kicker">SCENE 1 · 00:00–00:15 — OPENING</div>
+      <h2>文字で、世界を彫る。<small>ASCII ATELIER × ATELIER WILDS</small></h2>
+      <p class="lead">プロンプトを入れるだけ。あとはアトリエが、輪郭・陰影・質感を三層で彫り上げます。<br />このPVは <b>8シーン × 各15秒 ＝ 120秒</b> で全貌を紹介します。</p>
+      <div class="panel ascii">   /\_/\     A A A . . .
+  ( o.o )   ┌─────────────┐
+   &gt; ^ &lt;    │ ASCII       │
+  ───────   │  ATELIER    │
+ ～～～～～  └─────────────┘
+  ◦ ○ ◎ ○ ◦ ○ ◎ ○ ◦</div>
+      <div class="panel">▶ 自動再生中。シーンはフェード＋スライドで切替／下のドットで頭出し可</div>
+      <span class="scene-num">1 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="1" data-start="15" data-end="30">
+      <div class="kicker">SCENE 2 · 00:15–00:30 — PROMPT DEMO</div>
+      <h2>お題→生成を実演<small>「月を見上げる黒猫」3バリアント＋Craft調整</small></h2>
+      <div class="panel mono"><span class="typing" id="typeLine">月を見上げる黒猫 — Generate ▸ 3 sketches…</span></div>
+      <div class="panel ascii">      . *  ☾  * .
+       /\_/\  ── crafts: edge 0.88
+      ( -.- )  variants: A B C
+       / ^ \   width 72 × height 28
+    ░▒▓█░▒▓  density ▓▓▓░░ contrast ▓▓░░</div>
+      <p class="lead">構造パス（耳・髭・輪郭）→ 濃度フィル → 仕上げ研磨。Undo/Redoつき直接編集も可能。</p>
+      <span class="scene-num">2 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="2" data-start="30" data-end="45">
+      <div class="kicker">SCENE 3 · 00:30–00:45 — 6 STYLES</div>
+      <h2>6スタイル一気見せ<small>Line / Classic / Soft / Noir / Cyber / Block</small></h2>
+      <div class="grid6 mono">
+        <figure><figcaption>1 Line Etching</figcaption><pre> .,/\ТБ|()</pre></figure>
+        <figure><figcaption>2 Classic</figcaption><pre> .:-=+*#%@</pre></figure>
+        <figure><figcaption>3 Soft Shade</figcaption><pre> ·░▒▓█ ^~</pre></figure>
+        <figure><figcaption>4 Noir Ink</figcaption><pre>█▓▒░ ·#@</pre></figure>
+        <figure><figcaption>5 Cyber Glyph</figcaption><pre>&lt;/\=+*#$</pre></figure>
+        <figure><figcaption>6 Block Poster</figcaption><pre>█▀▄▌▐■□</pre></figure>
+      </div>
+      <div class="panel">同じ「雨の東京ネオン」でも印象が激変。Aurora／Amber CRT／Sakura／Paper／Matrix の5パレット×ズーム対応。</div>
+      <span class="scene-num">3 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="3" data-start="45" data-end="60">
+      <div class="kicker">SCENE 4 · 00:45–01:00 — WILDS: MINE &amp; BUILD</div>
+      <h2>掘って、積む。<small>ATELIER WILDS 採掘・建築ループ</small></h2>
+      <div class="panel ascii">  ☁   ☁      *  ✦  <span class="mine-flash">c * #</span>
+ ::::::::::::::::‖‖‖‖‖‖‖‖
+ :::##<span class="mine-flash">[#]</span>::cc::**|‖‖‖‖‖‖
+ :::::::::::::::<span class="mine-flash">@</span>══════
+ soil:  stone# wood| coal c crystal* → = plank / ! torch</div>
+      <div class="mockbar mono"><span class="btn hot">⛏ MINE</span><span class="btn">▣ Place</span><span class="btn">A ◀</span><span class="btn">SPACE ⤒</span><span class="btn">▶ D</span><span>tap tolerance＋長押し採掘＋jump assist</span></div>
+      <p class="lead">見える文字は全部素材。 soil <span class="mono">:</span>・stone <span class="mono">#</span>・wood <span class="mono">|</span>・coal <span class="mono">c</span>・crystal <span class="mono">*</span> を掘り、選んで置く。</p>
+      <span class="scene-num">4 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="4" data-start="60" data-end="75">
+      <div class="kicker">SCENE 5 · 01:00–01:15 — DAY/NIGHT × HOLO</div>
+      <h2>昼夜が、文字を照らす。<small>dawn → day → dusk → night／Holo UI</small></h2>
+      <div class="daynight" role="img" aria-label="昼夜グラデーション"></div>
+      <div class="panel ascii"> day   ::::::::: @ :::::::::  conta:1.00
+ dusk  :::::::# @ #:::::::  torch ! shows
+ night :::* c @ *::: + stars ★  light=1-night*.78</div>
+      <div class="mockbar mono"><span class="btn hot">Holo ON</span><span class="btn">⏸ pause</span><span class="btn">✦ Craft</span><span id="dayLabel">Day 01 · dusk 18:04</span></div>
+      <p class="lead">夜は松明 <span class="mono">!</span> が命綱。SOSヒントとドロップ演出が初心者を支えます。</p>
+      <span class="scene-num">5 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="5" data-start="75" data-end="90">
+      <div class="kicker">SCENE 6 · 01:15–01:30 — ONE-TAP ROUND TRIP</div>
+      <h2>ワンタップで往復。<small>TOP ⇄ WILDS／Frame Scene</small></h2>
+      <div class="flow mono"><span class="pill">◀ Atelierに戻る</span><span class="arrow">⇄</span><span class="pill">▶ Worldで遊ぶ</span><span class="arrow">→</span><span class="pill">Frame Scene ▸ editor</span></div>
+      <div class="panel ascii"> [WILDS view 24×12] ──Frame──▸ [Atelier editor]
+  @ .. ## | | ** ────────▸  undo/redo → shelf
+  built scene keeps glyphs  ▸ TXT / SVG / PNG export</div>
+      <p class="lead">作った景色はそのまま作品に。初回ガイド付きで迷子になりません。</p>
+      <span class="scene-num">6 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="6" data-start="90" data-end="105">
+      <div class="kicker">SCENE 7 · 01:30–01:45 — PWA &amp; SAVE</div>
+      <h2>ホーム画面に、工房を。<small>PWA／shelf＋world保存／offline</small></h2>
+      <div class="flow mono"><span class="pill">＋ Add to Home</span><span class="arrow">→</span><span class="pill">ASCII WILDS standalone</span><span class="arrow">→</span><span class="pill">?mode=world直行</span></div>
+      <div class="panel mono">ascii-atelier-shelf-v4 ⤺ artworks (localStorage)<br />ascii-atelier-world-v1 ⤺ terrain+inventory+time (round-trip verified)<br />manifest + sw.js → offline reopen OK · portrait-first thumb UI</div>
+      <p class="lead">保存形式は不変。重い依存なし・縦画面のまま親指操作できます。</p>
+      <span class="scene-num">7 / 8</span>
+    </section>
+
+    <section class="scene" data-scene="7" data-start="105" data-end="120">
+      <div class="kicker">SCENE 8 · 01:45–02:00 — FINALE</div>
+      <h2>さあ、彫ろう。<small>公開URLはこちら</small></h2>
+      <div class="panel"><div class="url mono">アトリエTOP: https://ryosaku610.github.io/ASCII-ATELIER/</div><div class="url mono">WILDS直行: https://ryosaku610.github.io/ASCII-ATELIER/?mode=world</div></div>
+      <div class="panel ascii">  ★  *  ★   A T E L I E R   ★  *  ★
+   ＼ generate → play → frame → export ／
+    ── prompt / image → ASCII → world ──</div>
+      <p class="lead">音声なし・約2分・全8シーン。Replayで最初から。気に入った景色はFrameして持ち帰ろう。</p>
+      <span class="scene-num">8 / 8</span>
+    </section>
+  </div>
+  <div class="controls">
+    <button class="primary" id="playBtn">⏸ Pause</button>
+    <button id="replayBtn">↺ Replay</button>
+    <button id="prevBtn">◀ Prev</button>
+    <button id="nextBtn">Next ▶</button>
+  </div>
+  <div class="foot">総尺 <code>8 scenes × 15s = 120s</code>／自動再生・キー操作（<code>←→ Space</code>）・<code>?t=秒</code>頭出し対応。録画用MP4は <code>output/pv/ascii-atelier-pv.mp4</code>（git管理外）。本PVは既存アプリ・保存形式・PWA・workflowに変更を加えていません。</div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var TOTAL = 120; // 秒
+  var COUNT = 8, PER = TOTAL / COUNT; // 15s
+  var scenes = Array.prototype.slice.call(document.querySelectorAll(".scene"));
+  var dotsBox = document.getElementById("dots");
+  var bar = document.getElementById("bar");
+  var clock = document.getElementById("clock");
+  var playBtn = document.getElementById("playBtn");
+  var viewport = document.getElementById("viewport");
+  var dots = scenes.map(function(s, i){
+    var b = document.createElement("button");
+    b.textContent = (i+1) + " " + s.querySelector("h2").textContent.slice(0,8);
+    b.setAttribute("role","tab");
+    b.addEventListener("click", function(){ seek(i * PER + 0.01); });
+    dotsBox.appendChild(b);
+    return b;
+  });
+  var t = 0, playing = true, last = null;
+  function q(){ try{ var m = /[?&]t=(\d+(?:\.\d+)?)/.exec(location.search); if(m){ t = Math.min(TOTAL-0.01, Math.max(0, parseFloat(m[1]))); } }catch(e){} }
+  function fmt(s){ s=Math.max(0,Math.floor(s)); var m=Math.floor(s/60), r=s%60; return (m<10?"0"+m:""+m)+":"+(r<10?"0"+r:""+r); }
+  function idx(){ return Math.min(COUNT-1, Math.floor(t / PER)); }
+  function render(){
+    var k = idx();
+    scenes.forEach(function(s, i){
+      var on = (i === k);
+      if(on && !s.classList.contains("active")){ s.classList.add("active"); s.classList.remove("leave-left"); }
+      else if(!on && s.classList.contains("active")){ s.classList.add("leave-left"); s.classList.remove("active"); }
+      dots[i].setAttribute("aria-current", on ? "true" : "false");
+    });
+    bar.style.width = (t / TOTAL * 100).toFixed(2) + "%";
+    clock.textContent = fmt(t) + " / " + fmt(TOTAL) + " · SCENE " + (k+1) + "/8";
+  }
+  function tick(ts){
+    if(last === null) last = ts;
+    var dt = (ts - last) / 1000; last = ts;
+    if(playing){ t += dt; if(t >= TOTAL){ t = TOTAL; playing = false; playBtn.textContent = "▶ Play"; } render(); }
+    requestAnimationFrame(tick);
+  }
+  function seek(nt){ t = Math.min(TOTAL-0.01, Math.max(0, nt)); if(!playing){ playing = true; playBtn.textContent = "⏸ Pause"; } render(); }
+  playBtn.addEventListener("click", function(){ playing = !playing; playBtn.textContent = playing ? "⏸ Pause" : "▶ Play"; });
+  document.getElementById("replayBtn").addEventListener("click", function(){ seek(0); });
+  document.getElementById("prevBtn").addEventListener("click", function(){ seek(Math.max(0, idx()*PER - PER + 0.01)); });
+  document.getElementById("nextBtn").addEventListener("click", function(){ seek(Math.min(TOTAL-0.01, (idx()+1)*PER + 0.01)); });
+  document.addEventListener("keydown", function(e){
+    if(e.key === " "){ e.preventDefault(); playBtn.click(); }
+    else if(e.key === "ArrowRight"){ seek(t + 5); }
+    else if(e.key === "ArrowLeft"){ seek(t - 5); }
+  });
+  // 見どころ: タイピング演出（シーン2が来たら1回だけ走らせる）
+  var typed = false;
+  setInterval(function(){
+    if(idx() === 1 && !typed){ typed = true; var el = document.getElementById("typeLine");
+      var full = "月を見上げる黒猫 — Generate ✓ 3 sketches → Craft 0.88 → Adopt B"; var i = 0; el.textContent = "";
+      var iv = setInterval(function(){ i++; el.textContent = full.slice(0, i); if(i >= full.length) clearInterval(iv); }, 90);
+    }
+    if(idx() !== 1) typed = false;
+  }, 500);
+  // 見どころ: シーン5の時刻ラベルを15秒周期で回す
+  var phases = ["Day 01 · dawn 05:12","Day 01 · day 12:00","Day 01 · dusk 18:04","Day 01 · night 23:40"];
+  setInterval(function(){ var el = document.getElementById("dayLabel"); if(el){ var k = Math.floor((t % 15) / (15/4)); el.textContent = phases[k]; } }, 250);
+  q(); render(); requestAnimationFrame(tick);
+  // 検証用に尺を公開
+  window.__PV__ = { total: TOTAL, scenes: COUNT, per: PER };
+})();
+</script>
+</body>
+</html>
